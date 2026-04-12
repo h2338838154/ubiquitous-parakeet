@@ -21,7 +21,7 @@ import * as XLSX from 'xlsx';
 import { 
   saveLogisticsData, loadLogisticsData, saveShiftConfig,
   loadShiftConfigCloud, saveAllShiftConfigsCloud,
-  clearLogisticsData,
+  clearLogisticsData, clearShiftConfigs, clearAllCloudData,
   type LogisticsDataRow, type DailyStaffConfig, dateToExcelSerial, excelSerialToDate
 } from '@/lib/supabase-client';
 
@@ -779,13 +779,14 @@ export default function SmartPerformanceDashboard() {
   };
   
   const clearCloudData = async () => {
-    if (!confirm('确定要清除云端数据吗？')) return;
-    const result = await clearLogisticsData();
+    if (!confirm('确定要清除所有云端数据吗？包括业务数据和班次配置！')) return;
+    const result = await clearAllCloudData();
     if (result.success) {
       setHasCloudData(false);
       setUploadedData([]);
       setCalculatedData([]);
-      setNotification({ type: 'success', message: '云端数据已清除' });
+      setStaffConfig({});
+      setNotification({ type: 'success', message: '云端数据已全部清除' });
     } else {
       setNotification({ type: 'error', message: '清除失败' });
     }
@@ -1026,6 +1027,7 @@ export default function SmartPerformanceDashboard() {
                             variant="outline" 
                             size="sm"
                             className="ml-auto border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-400"
+                            onClick={clearCloudData}
                           >
                             <Trash2 className="w-4 h-4 mr-1" />
                             <span className="hidden sm:inline">清除云端</span>

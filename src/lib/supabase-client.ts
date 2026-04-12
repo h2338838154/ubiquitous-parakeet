@@ -257,7 +257,7 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
   }
 }
 
-// 清除数据
+// 清除数据（不清除班次配置）
 export async function clearLogisticsData(): Promise<{ success: boolean; error?: string }> {
   if (!supabase) {
     return { success: false, error: '云端连接不可用' };
@@ -265,9 +265,43 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   
   try {
     const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
-    if (error) {
-      return { success: false, error: error.message };
+    if (error && Object.keys(error).length > 0) {
+      console.warn('Clear logistics data warning:', error);
     }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: '清除失败' };
+  }
+}
+
+// 清除班次配置
+export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) {
+    return { success: false, error: '云端连接不可用' };
+  }
+  
+  try {
+    const { error } = await supabase.from('shift_configs').delete().neq('date', '');
+    if (error && Object.keys(error).length > 0) {
+      console.warn('Clear shift configs warning:', error);
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: '清除班次配置失败' };
+  }
+}
+
+// 清除所有云端数据
+export async function clearAllCloudData(): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) {
+    return { success: false, error: '云端连接不可用' };
+  }
+  
+  try {
+    // 清除业务数据
+    await supabase.from('logistics_data').delete().neq('sync_id', '');
+    // 清除班次配置
+    await supabase.from('shift_configs').delete().neq('date', '');
     return { success: true };
   } catch (err) {
     return { success: false, error: '清除失败' };
