@@ -262,11 +262,17 @@ export default function SmartPerformanceDashboard() {
   useEffect(() => {
     const checkCloudConnection = async () => {
       try {
-        const { data: configData } = await loadShiftConfig();
-        setIsCloudConnected(true);
-        setHasCloudData(configData.length > 0);
+        const { data, error } = await loadShiftConfig();
+        if (error) {
+          setIsCloudConnected(false);
+          setHasCloudData(false);
+        } else {
+          setIsCloudConnected(true);
+          setHasCloudData((data || []).length > 0);
+        }
       } catch {
         setIsCloudConnected(false);
+        setHasCloudData(false);
       }
     };
     checkCloudConnection();
@@ -274,6 +280,11 @@ export default function SmartPerformanceDashboard() {
   
   // 从云端加载数据
   const loadFromCloud = async () => {
+    if (!isCloudConnected) {
+      setNotification({ type: 'error', message: '云端连接不可用，请检查配置' });
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const { data, error } = await loadLogisticsData();
@@ -312,6 +323,11 @@ export default function SmartPerformanceDashboard() {
   const saveToCloud = async () => {
     if (calculatedData.length === 0) {
       setNotification({ type: 'error', message: '暂无数据可保存' });
+      return;
+    }
+    
+    if (!isCloudConnected) {
+      setNotification({ type: 'error', message: '云端连接不可用，请检查配置' });
       return;
     }
     
@@ -666,11 +682,11 @@ export default function SmartPerformanceDashboard() {
               <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={loadExampleData}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" />示例数据
               </Button>
-              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={loadFromCloud} disabled={isLoading}>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={loadFromCloud} disabled={isLoading || !isCloudConnected}>
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                 云端加载
               </Button>
-              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={saveToCloud} disabled={isSaving || calculatedData.length === 0}>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={saveToCloud} disabled={isSaving || calculatedData.length === 0 || !isCloudConnected}>
                 {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                 保存云端
               </Button>
