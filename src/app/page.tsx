@@ -20,7 +20,7 @@ import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { 
   saveLogisticsData, loadLogisticsData, saveShiftConfig, loadShiftConfig, clearLogisticsData,
-  type LogisticsDataRow, type ShiftConfig 
+  type LogisticsDataRow, type ShiftConfig, dateToExcelSerial, excelSerialToDate
 } from '@/lib/supabase-client';
 
 // ============ 类型定义 ============
@@ -319,24 +319,28 @@ export default function SmartPerformanceDashboard() {
       }
       
       if (data && data.length > 0) {
-        // 适配中文列名
-        const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
-          date: String(row['日期']),
-          timeSlot: row['时段'],
-          shift: row['班次'] || '白班',
-          freq: row['频次'] || '',
-          unloadCount: row['卸车量'] || 0,
-          loopCount: row['环线量'] || 0,
-          packageCount: row['集包量'] || 0,
-          manageCount: row['管理'] || 4,
-          unloadStaff: row['卸车人数'] || 0,
-          packageStaff: row['集包人数'] || 0,
-          loopStaff: row['环线人数'] || 0,
-          fileStaff: row['文件人数'] || 0,
-          inspectStaff: row['发验人数'] || 0,
-          serviceStaff: row['客服人数'] || 0,
-          receiveStaff: 0
-        }));
+        // 适配中文列名，日期可能是数字(Excel序列号)或字符串
+        const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => {
+          const rawDate = row['日期'];
+          const dateStr = typeof rawDate === 'number' ? excelSerialToDate(rawDate) : String(rawDate);
+          return {
+            date: dateStr,
+            timeSlot: row['时段'],
+            shift: row['班次'] || '白班',
+            freq: row['频次'] || '',
+            unloadCount: row['卸车量'] || 0,
+            loopCount: row['环线量'] || 0,
+            packageCount: row['集包量'] || 0,
+            manageCount: row['管理'] || 4,
+            unloadStaff: row['卸车人数'] || 0,
+            packageStaff: row['集包人数'] || 0,
+            loopStaff: row['环线人数'] || 0,
+            fileStaff: row['文件人数'] || 0,
+            inspectStaff: row['发验人数'] || 0,
+            serviceStaff: row['客服人数'] || 0,
+            receiveStaff: 0
+          };
+        });
         setUploadedData(parsed);
         setHasCloudData(true);
         setNotification({ type: 'success', message: `成功加载 ${parsed.length} 条云端数据` });
@@ -365,9 +369,10 @@ export default function SmartPerformanceDashboard() {
     setIsSaving(true);
     try {
       // 保存业务数据（使用中文列名适配现有表结构）
+      // 日期需要转换为Excel序列号格式
       const logisticsRecords = calculatedData.map(d => ({
         sync_id: `${d.date}_${d.timeSlot}`,
-        '日期': d.date,
+        '日期': dateToExcelSerial(d.date),
         '时段': d.timeSlot,
         '班次': d.shift,
         '频次': d.freq,

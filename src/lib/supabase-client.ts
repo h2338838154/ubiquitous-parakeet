@@ -13,6 +13,20 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export { supabase };
 
+// 日期转换函数：ISO日期转Excel序列号
+export function dateToExcelSerial(dateStr: string): number {
+  const date = new Date(dateStr);
+  const excelEpoch = new Date(1899, 11, 30);
+  return Math.floor((date.getTime() - excelEpoch.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// 日期转换函数：Excel序列号转ISO日期
+export function excelSerialToDate(serial: number): string {
+  const excelEpoch = new Date(1899, 11, 30);
+  const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+  return date.toISOString().split('T')[0];
+}
+
 // 适配用户现有表结构
 export interface LogisticsDataRow {
   sync_id: string;
