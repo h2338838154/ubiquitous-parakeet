@@ -14,7 +14,7 @@ import {
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
   FileUp, Trash2, Users, TrendingUp, DollarSign, Package, Truck, ArrowUp, ArrowDown,
-  Cloud, CloudOff, RefreshCw, Save, Loader2, Menu, X
+  Cloud, CloudOff, RefreshCw, Save, Loader2, Menu, X, BarChart3, Sun, Moon, Sliders
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -263,6 +263,7 @@ export default function SmartPerformanceDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasCloudData, setHasCloudData] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'config' | 'daily' | 'charts'>('config');
   
   // 检查云端连接并自动加载数据
   useEffect(() => {
@@ -884,102 +885,141 @@ export default function SmartPerformanceDashboard() {
           </CardContent>
         </Card>
         
-        {/* 班次人数配置 */}
-        <Card className="bg-white shadow-lg border-0">
-          <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Users className="w-5 h-5" />
-              班次配置
-              <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            {/* 日期选择 */}
-            <div className="flex items-center gap-3 mb-4 pb-3 border-b">
-              <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
-              <span className="font-medium text-slate-700 text-sm flex-shrink-0">配置日期</span>
-              <Select value={configDate} onValueChange={setConfigDate}>
-                <SelectTrigger className="flex-1 min-w-0">
-                  <SelectValue placeholder="选择日期" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableDates.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* 当前日期的班次配置 */}
-            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">白</span>
+        {/* Tab切换按钮 */}
+        {uploadedData.length > 0 && (
+          <Card className="bg-white shadow-lg border-0">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-center gap-2 sm:gap-4">
+                <Button
+                  variant={activeTab === 'config' ? 'default' : 'outline'}
+                  onClick={() => setActiveTab('config')}
+                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'config' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                >
+                  <Sliders className="w-4 h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">班次配置</span>
+                  <span className="sm:hidden">配置</span>
+                </Button>
+                <Button
+                  variant={activeTab === 'daily' ? 'default' : 'outline'}
+                  onClick={() => setActiveTab('daily')}
+                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'daily' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                >
+                  <Calendar className="w-4 h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">每日汇总</span>
+                  <span className="sm:hidden">汇总</span>
+                </Button>
+                <Button
+                  variant={activeTab === 'charts' ? 'default' : 'outline'}
+                  onClick={() => setActiveTab('charts')}
+                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'charts' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                >
+                  <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">数据看板</span>
+                  <span className="sm:hidden">看板</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* 班次配置 - 仅config tab显示 */}
+        {uploadedData.length > 0 && activeTab === 'config' && (
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5" />
+                班次配置
+                <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              {/* 日期选择 */}
+              <div className="flex items-center gap-3 mb-4 pb-3 border-b">
+                <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                <span className="font-medium text-slate-700 text-sm flex-shrink-0">配置日期</span>
+                <Select value={configDate} onValueChange={setConfigDate}>
+                  <SelectTrigger className="flex-1 min-w-0">
+                    <SelectValue placeholder="选择日期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDates.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* 当前日期的班次配置 */}
+              <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-bold text-sm">白</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-700 text-sm">白班</p>
+                    <p className="text-xs text-slate-500 hidden sm:block">07:00-18:00</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={staffConfig[configDate]?.white ?? 70}
+                      onChange={e => setStaffConfig(s => ({
+                        ...s,
+                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
+                      }))}
+                      className="w-16 text-center font-bold bg-white"
+                    />
+                    <span className="text-slate-500 text-xs">人</span>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-700 text-sm">白班</p>
-                  <p className="text-xs text-slate-500 hidden sm:block">07:00-18:00</p>
+                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-bold text-sm">中</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-700 text-sm">中班</p>
+                    <p className="text-xs text-slate-500 hidden sm:block">可选</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={staffConfig[configDate]?.middle ?? 0}
+                      onChange={e => setStaffConfig(s => ({
+                        ...s,
+                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, middle: Number(e.target.value) || 0 }
+                      }))}
+                      className="w-16 text-center font-bold bg-white"
+                    />
+                    <span className="text-slate-500 text-xs">人</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    value={staffConfig[configDate]?.white ?? 70}
-                    onChange={e => setStaffConfig(s => ({
-                      ...s,
-                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
-                    }))}
-                    className="w-16 text-center font-bold bg-white"
-                  />
-                  <span className="text-slate-500 text-xs">人</span>
+                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 xs:col-span-2 md:col-span-1">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-bold text-sm">夜</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-700 text-sm">夜班</p>
+                    <p className="text-xs text-slate-500 hidden sm:block">18:00-07:00</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={staffConfig[configDate]?.night ?? 95}
+                      onChange={e => setStaffConfig(s => ({
+                        ...s,
+                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, night: Number(e.target.value) || 0 }
+                      }))}
+                      className="w-16 text-center font-bold bg-white"
+                    />
+                    <span className="text-slate-500 text-xs">人</span>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">中</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-700 text-sm">中班</p>
-                  <p className="text-xs text-slate-500 hidden sm:block">可选</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    value={staffConfig[configDate]?.middle ?? 0}
-                    onChange={e => setStaffConfig(s => ({
-                      ...s,
-                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, middle: Number(e.target.value) || 0 }
-                    }))}
-                    className="w-16 text-center font-bold bg-white"
-                  />
-                  <span className="text-slate-500 text-xs">人</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 xs:col-span-2 md:col-span-1">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">夜</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-700 text-sm">夜班</p>
-                  <p className="text-xs text-slate-500 hidden sm:block">18:00-07:00</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    value={staffConfig[configDate]?.night ?? 95}
-                    onChange={e => setStaffConfig(s => ({
-                      ...s,
-                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, night: Number(e.target.value) || 0 }
-                    }))}
-                    className="w-16 text-center font-bold bg-white"
-                  />
-                  <span className="text-slate-500 text-xs">人</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         
         {/* 统计卡片 */}
-        {uploadedData.length > 0 && (
+        {uploadedData.length > 0 && activeTab !== 'charts' && (
           <div className="space-y-4">
             {hasCloudData && (
               <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200">
@@ -1058,8 +1098,8 @@ export default function SmartPerformanceDashboard() {
           </div>
         )}
         
-        {/* 按天汇总 */}
-        {uploadedData.length > 0 && (
+        {/* 按天汇总 - 仅daily tab显示 */}
+        {uploadedData.length > 0 && activeTab === 'daily' && (
           <Card className="bg-white shadow-lg border-0">
             <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -1098,8 +1138,8 @@ export default function SmartPerformanceDashboard() {
           </Card>
         )}
         
-        {/* 筛选与数据管理 */}
-        {uploadedData.length > 0 && (
+        {/* 筛选与数据管理 - config和daily tab显示 */}
+        {uploadedData.length > 0 && activeTab !== 'charts' && (
           <Card className="bg-white shadow-lg border-0">
             <CardContent className="p-3">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1123,6 +1163,27 @@ export default function SmartPerformanceDashboard() {
                     <SelectItem value="夜班">夜班</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* 白班/夜班快捷筛选 */}
+                <div className="flex items-center gap-1 ml-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`h-8 px-2 sm:px-3 text-xs ${selectedShift === '白班' ? 'bg-amber-100 border-amber-400 text-amber-700' : ''}`}
+                    onClick={() => setSelectedShift(selectedShift === '白班' ? 'all' : '白班')}
+                  >
+                    <Sun className="w-3 h-3 mr-1" />
+                    白
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`h-8 px-2 sm:px-3 text-xs ${selectedShift === '夜班' ? 'bg-slate-800 border-slate-600 text-white' : ''}`}
+                    onClick={() => setSelectedShift(selectedShift === '夜班' ? 'all' : '夜班')}
+                  >
+                    <Moon className="w-3 h-3 mr-1" />
+                    夜
+                  </Button>
+                </div>
                 <Badge variant="outline" className="text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
                 
                 {/* 清除云端数据按钮 */}
@@ -1143,8 +1204,8 @@ export default function SmartPerformanceDashboard() {
           </Card>
         )}
         
-        {/* 图表区域 - 两列布局 */}
-        {uploadedData.length > 0 && (
+        {/* 图表区域 - 仅charts tab显示，两列布局 */}
+        {uploadedData.length > 0 && activeTab === 'charts' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* 左列 */}
             <div className="space-y-4 sm:space-y-6">
@@ -1171,27 +1232,52 @@ export default function SmartPerformanceDashboard() {
                 </CardContent>
               </Card>
               
-              {/* 成本明细 */}
+              {/* 成本结构 - 折线图 */}
               <Card className="bg-white shadow-xl border-0 overflow-hidden">
                 <CardHeader className="bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 px-4">
                   <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                     <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                    成本结构
+                    成本结构趋势
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 sm:p-4">
                   <div className="h-[280px] sm:h-[320px] md:h-[350px]">
                     <ResponsiveContainer>
-                      <BarChart data={revenueDetailData.slice(0, 12)} barCategoryGap="20%">
+                      <LineChart data={revenueDetailData.slice(0, 12)}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
                         <YAxis tick={{ fontSize: 9 }} width={50} />
                         <Tooltip formatter={(v: number) => `¥${v}`} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Bar dataKey="卸车成本" fill={COLORS.unload} stackId="a" />
-                        <Bar dataKey="管理成本" fill={COLORS.purple} stackId="a" />
-                        <Bar dataKey="其他成本" fill={COLORS.danger} stackId="a" />
-                      </BarChart>
+                        <Line type="monotone" dataKey="卸车成本" stroke={COLORS.unload} strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="其他成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* 收入明细趋势 */}
+              <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white py-3 px-4">
+                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                    <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
+                    收入明细趋势
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                    <ResponsiveContainer>
+                      <LineChart data={revenueDetailData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                        <YAxis tick={{ fontSize: 9 }} width={50} />
+                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                        <Legend wrapperStyle={{ fontSize: 10 }} />
+                        <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
@@ -1265,35 +1351,8 @@ export default function SmartPerformanceDashboard() {
           </div>
         )}
         
-        {/* 收入明细图表 */}
-        {uploadedData.length > 0 && (
-          <Card className="bg-white shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white py-3 px-4">
-              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                收入明细趋势
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4">
-              <div className="h-[280px] sm:h-[320px] md:h-[400px]">
-                <ResponsiveContainer>
-                  <LineChart data={revenueDetailData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                    <YAxis tick={{ fontSize: 9 }} width={50} />
-                    <Tooltip formatter={(v: number) => `¥${v}`} />
-                    <Legend wrapperStyle={{ fontSize: 10 }} />
-                    <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* 数据表格 */}
-        {uploadedData.length > 0 && (
+        {/* 数据表格 - 仅config tab显示 */}
+        {uploadedData.length > 0 && activeTab === 'config' && (
           <Card className="bg-white shadow-xl border-0 overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-3 px-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
