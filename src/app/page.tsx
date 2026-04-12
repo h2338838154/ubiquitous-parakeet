@@ -4,372 +4,452 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Upload, Trash2, RefreshCw, Filter, Download, TrendingUp, Package, Truck, RotateCw, DollarSign, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
-import { format, parse } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+} from 'recharts';
+import {
+  Download, TrendingUp, Package, Truck, RotateCw,
+  DollarSign, Users, FileSpreadsheet, AlertCircle, CheckCircle, Calculator, Brain,
+  TrendingDown, Activity, PieChart as PieChartIcon, BarChart3, LineChart as LineChartIcon,
+  Settings2, Sparkles, Target, Zap
+} from 'lucide-react';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
-// 类型定义
-interface LogisticsData {
-  id?: number;
-  date: string;
-  time_slot: string;
-  shift_type?: string;
-  frequency?: string;
-  unload_count?: number;
-  unload_price?: string;
-  unload_profit?: string;
-  unload_loss?: string;
-  package_count?: number;
-  package_price?: string;
-  package_profit?: string;
-  package_loss?: string;
-  loop_count?: number;
-  loop_price?: string;
-  loop_profit?: string;
-  loop_loss?: string;
-  other_cost?: string;
-  sender_count?: number;
-  person_count?: number;
-  receiver_count?: number;
-  total_profit?: string;
-  created_at?: string;
-  updated_at?: string;
+// ============ 类型定义 ============
+interface StaffConfig {
+  totalStaff: number;
+  unloadStaff: number;
+  packageStaff: number;
+  loopStaff: number;
+  reusedStaff: number; // 复用人员
 }
 
-interface FilterState {
+interface ShiftConfig {
+  name: string;
+  timeRanges: string[];
+  baseStaff: number;
+  staffRange: [number, number];
+  allocation: {
+    unloadRatio: number;
+    packageRatio: number;
+    loopRatio: number;
+    reusedRatio: number;
+  };
+}
+
+interface TimeSlotData {
   date: string;
   timeSlot: string;
-  shiftType: string;
+  shift: string;
   frequency: string;
+  unloadCount: number;
+  packageCount: number;
+  loopCount: number;
+  unloadStaff: number;
+  packageStaff: number;
+  loopStaff: number;
+  reusedStaff: number;
+  unloadEfficiency: number;
+  packageEfficiency: number;
+  loopEfficiency: number;
+  unloadPrice: number;
+  packagePrice: number;
+  loopPrice: number;
+  unloadSalary: number;
+  packageSalary: number;
+  loopSalary: number;
+  unloadProfit: number;
+  packageProfit: number;
+  loopProfit: number;
+  otherCost: number;
+  totalProfit: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalSalary: number;
 }
 
-// 时间段选项
-const TIME_SLOTS = [
-  '0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300',
-  '1300-1400', '1400-1500', '1500-1600', '1600-1700', '1700-1800', '1800-1900',
-  '1900-2000', '2000-2100', '2100-2200', '2200-2300', '2300-0000', '0000-0100',
-  '0100-0200', '0200-0300', '0300-0400', '0400-0500', '0500-0600', '0600-0700'
-];
+interface DailyConfig {
+  date: string;
+  whiteShift: StaffConfig;
+  middleShift: StaffConfig;
+  nightShift: StaffConfig;
+}
 
-const SHIFT_TYPES = ['白班', '夜班'];
-const FREQUENCY_TYPES = ['进口', '出口', '清场'];
-
-// 图表颜色
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-// 指标配置
-const METRICS_CONFIG = [
-  { key: 'unload_count', label: '卸车', color: '#3b82f6', icon: Truck },
-  { key: 'package_count', label: '集包', color: '#10b981', icon: Package },
-  { key: 'loop_count', label: '环线', color: '#f59e0b', icon: RotateCw },
-  { key: 'other_cost', label: '其他成本', color: '#ef4444', icon: DollarSign, isCost: true },
-];
-
-// 演示数据
-const DEMO_DATA: LogisticsData[] = [
-  { date: '2026-04-01', time_slot: '0700-0800', shift_type: '白班', frequency: '进口', unload_count: 1250, package_count: 890, loop_count: 560, other_cost: '1250.00', total_profit: '4560.00' },
-  { date: '2026-04-01', time_slot: '0800-0900', shift_type: '白班', frequency: '进口', unload_count: 1380, package_count: 920, loop_count: 620, other_cost: '1380.00', total_profit: '5120.00' },
-  { date: '2026-04-01', time_slot: '0900-1000', shift_type: '白班', frequency: '出口', unload_count: 1150, package_count: 780, loop_count: 480, other_cost: '1150.00', total_profit: '3890.00' },
-  { date: '2026-04-01', time_slot: '1000-1100', shift_type: '白班', frequency: '出口', unload_count: 1420, package_count: 980, loop_count: 650, other_cost: '1420.00', total_profit: '5680.00' },
-  { date: '2026-04-01', time_slot: '1100-1200', shift_type: '白班', frequency: '进口', unload_count: 1680, package_count: 1120, loop_count: 720, other_cost: '1680.00', total_profit: '6890.00' },
-  { date: '2026-04-01', time_slot: '1300-1400', shift_type: '白班', frequency: '进口', unload_count: 1520, package_count: 1050, loop_count: 680, other_cost: '1520.00', total_profit: '6120.00' },
-  { date: '2026-04-01', time_slot: '1400-1500', shift_type: '白班', frequency: '出口', unload_count: 1290, package_count: 870, loop_count: 540, other_cost: '1290.00', total_profit: '4560.00' },
-  { date: '2026-04-01', time_slot: '1500-1600', shift_type: '白班', frequency: '进口', unload_count: 1750, package_count: 1180, loop_count: 780, other_cost: '1750.00', total_profit: '7280.00' },
-  { date: '2026-04-01', time_slot: '1600-1700', shift_type: '白班', frequency: '清场', unload_count: 980, package_count: 650, loop_count: 420, other_cost: '980.00', total_profit: '3280.00' },
-  { date: '2026-04-01', time_slot: '0700-0800', shift_type: '夜班', frequency: '进口', unload_count: 1180, package_count: 820, loop_count: 510, other_cost: '1180.00', total_profit: '4120.00' },
-  { date: '2026-04-01', time_slot: '0800-0900', shift_type: '夜班', frequency: '出口', unload_count: 1320, package_count: 910, loop_count: 590, other_cost: '1320.00', total_profit: '4890.00' },
-  { date: '2026-04-01', time_slot: '0900-1000', shift_type: '夜班', frequency: '进口', unload_count: 1450, package_count: 990, loop_count: 660, other_cost: '1450.00', total_profit: '5560.00' },
-];
-
-// 解析Excel日期
-function parseExcelDate(value: unknown): string {
-  if (!value) return '';
-  
-  if (typeof value === 'number') {
-    // Excel日期序列号
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return format(date, 'yyyy-MM-dd');
+// ============ 常量配置 ============
+const SHIFTS_CONFIG: Record<string, ShiftConfig> = {
+  white: {
+    name: '白班',
+    timeRanges: ['0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300', '1300-1400', '1400-1500', '1500-1600', '1600-1700', '1700-1800'],
+    baseStaff: 65,
+    staffRange: [58, 70],
+    allocation: { unloadRatio: 0.15, packageRatio: 0.32, loopRatio: 0.45, reusedRatio: 0.08 }
+  },
+  middle: {
+    name: '中班',
+    timeRanges: ['1130-1230', '1230-1330', '1330-1430', '1430-1530', '1530-1630', '1630-1730', '1730-1830', '1830-1930', '1930-2030', '2030-2130', '2130-2230', '2230-2330', '2330-0030'],
+    baseStaff: 8,
+    staffRange: [5, 10],
+    allocation: { unloadRatio: 0.25, packageRatio: 0.35, loopRatio: 0.30, reusedRatio: 0.10 }
+  },
+  night: {
+    name: '夜班',
+    timeRanges: ['1800-1900', '1900-2000', '2000-2100', '2100-2200', '2200-2300', '2300-0000', '0000-0100', '0100-0200', '0200-0300', '0300-0400', '0400-0500', '0500-0600', '0600-0700'],
+    baseStaff: 92,
+    staffRange: [85, 100],
+    allocation: { unloadRatio: 0.22, packageRatio: 0.33, loopRatio: 0.38, reusedRatio: 0.07 }
   }
+};
+
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+
+// ============ 智能分配算法 ============
+function calculateStaffAllocation(totalStaff: number, config: typeof SHIFTS_CONFIG.white.allocation) {
+  const { unloadRatio, packageRatio, loopRatio, reusedRatio } = config;
   
-  if (typeof value === 'string') {
-    // 尝试解析各种格式
-    const formats = [
-      'yyyy/MM/dd', 'yyyy-M-d', 'd-MMM-yyyy', 'MM/dd/yyyy',
-      'yyyy.MM.dd', 'yyyy年MM月dd日'
-    ];
-    
-    for (const fmt of formats) {
-      try {
-        const parsed = parse(value, fmt, new Date());
-        if (!isNaN(parsed.getTime())) {
-          return format(parsed, 'yyyy-MM-dd');
-        }
-      } catch {}
-    }
-    
-    // 如果已经是 yyyy-MM-dd 格式，直接返回
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return value;
-    }
-  }
+  const baseUnloadStaff = Math.round(totalStaff * unloadRatio);
+  const basePackageStaff = Math.round(totalStaff * packageRatio);
+  const baseLoopStaff = Math.round(totalStaff * loopRatio);
+  const baseReusedStaff = Math.round(totalStaff * reusedRatio);
   
-  return String(value);
+  // 确保总数一致
+  const diff = totalStaff - (baseUnloadStaff + basePackageStaff + baseLoopStaff + baseReusedStaff);
+  const loopStaff = baseLoopStaff + diff; // 调整环线人数
+  
+  return { unloadStaff: baseUnloadStaff, packageStaff: basePackageStaff, loopStaff, reusedStaff: baseReusedStaff };
 }
 
-// 计算可视化条宽度
-function getBarWidth(value: number, maxValue: number): string {
-  if (maxValue === 0) return '0%';
-  return `${Math.min((value / maxValue) * 100, 100)}%`;
-}
-
-// 获取利润颜色
-function getProfitColor(value: number | string): string {
-  const numValue = typeof value === 'string' ? parseFloat(value) : value;
-  if (numValue > 0) return 'text-emerald-500';
-  if (numValue < 0) return 'text-red-500';
-  return 'text-gray-500';
-}
-
-export default function LogisticsDashboard() {
-  // 状态
-  const [data, setData] = useState<LogisticsData[]>([]);
-  const [filteredData, setFilteredData] = useState<LogisticsData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dataSource, setDataSource] = useState<'cloud' | 'demo'>('cloud');
-  const [filters, setFilters] = useState<FilterState>({
-    date: '',
-    timeSlot: '',
-    shiftType: '',
-    frequency: '',
+function generateTimeSlotData(date: string, shift: ShiftConfig, staffConfig: StaffConfig): TimeSlotData[] {
+  const { unloadStaff, packageStaff, loopStaff, reusedStaff } = staffConfig;
+  const result: TimeSlotData[] = [];
+  
+  // 业务量系数（根据时段调整）
+  const peakHours = ['0900-1000', '1000-1100', '1300-1400', '1900-2000', '2000-2100'];
+  const lowHours = ['0600-0700', '0700-0800', '1100-1200', '1700-1800', '0500-0600', '2300-0000'];
+  
+  shift.timeRanges.forEach((timeSlot) => {
+    let volumeMultiplier = 1.0;
+    if (peakHours.includes(timeSlot)) volumeMultiplier = 1.5;
+    else if (lowHours.includes(timeSlot)) volumeMultiplier = 0.6;
+    
+    // 模拟业务量
+    const baseUnload = 5000 + Math.random() * 10000;
+    const basePackage = 3000 + Math.random() * 8000;
+    const baseLoop = 2000 + Math.random() * 5000;
+    
+    const unloadCount = Math.round(baseUnload * volumeMultiplier);
+    const packageCount = Math.round(basePackage * volumeMultiplier);
+    const loopCount = Math.round(baseLoop * volumeMultiplier);
+    
+    // 计算人效
+    const unloadEfficiency = unloadStaff > 0 ? unloadCount / unloadStaff : 0;
+    const packageEfficiency = packageStaff > 0 ? packageCount / packageStaff : 0;
+    const loopEfficiency = loopStaff > 0 ? loopCount / loopStaff : 0;
+    
+    // 计算薪资（按人效阶梯）
+    const getSalary = (efficiency: number, base: number) => {
+      if (efficiency > 800) return base * 1.3;
+      if (efficiency > 500) return base * 1.1;
+      if (efficiency > 300) return base;
+      return base * 0.85;
+    };
+    
+    const baseUnloadSalary = 260 + reusedStaff * 15;
+    const basePackageSalary = 320;
+    const baseLoopSalary = 480;
+    
+    const unloadSalary = getSalary(unloadEfficiency, baseUnloadSalary);
+    const packageSalary = getSalary(packageEfficiency, basePackageSalary);
+    const loopSalary = getSalary(loopEfficiency, baseLoopSalary);
+    
+    // 计算收入（按单价）
+    const unloadPrice = unloadCount * 0.03;
+    const packagePrice = packageCount * 0.05;
+    const loopPrice = loopCount * 0.08;
+    
+    // 计算盈亏
+    const unloadProfit = unloadPrice - unloadSalary * unloadStaff;
+    const packageProfit = packagePrice - packageSalary * packageStaff;
+    const loopProfit = loopPrice - loopSalary * loopStaff;
+    
+    // 其他成本（场地、设备等）
+    const otherCost = 180 + Math.random() * 60;
+    
+    // 总计
+    const totalRevenue = unloadPrice + packagePrice + loopPrice;
+    const totalSalary = unloadSalary * unloadStaff + packageSalary * packageStaff + loopSalary * loopStaff;
+    const totalCost = totalSalary + otherCost;
+    const totalProfit = unloadProfit + packageProfit + loopProfit - otherCost;
+    
+    result.push({
+      date,
+      timeSlot,
+      shift: shift.name,
+      frequency: timeSlot.includes('1100') || timeSlot.includes('1700') ? '清场' : (shift.name === '白班' ? '进口' : '出口'),
+      unloadCount,
+      packageCount,
+      loopCount,
+      unloadStaff,
+      packageStaff,
+      loopStaff,
+      reusedStaff,
+      unloadEfficiency,
+      packageEfficiency,
+      loopEfficiency,
+      unloadPrice,
+      packagePrice,
+      loopPrice,
+      unloadSalary,
+      packageSalary,
+      loopSalary,
+      unloadProfit,
+      packageProfit,
+      loopProfit,
+      otherCost,
+      totalProfit,
+      totalRevenue,
+      totalCost,
+      totalSalary
+    });
   });
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['unload_count', 'package_count', 'loop_count']);
-  const [uploading, setUploading] = useState(false);
+  
+  return result;
+}
+
+// ============ 演示数据生成 ============
+function generateDemoData(config: DailyConfig): TimeSlotData[] {
+  const allData: TimeSlotData[] = [];
+  
+  // 白班
+  const whiteData = generateTimeSlotData(config.date, SHIFTS_CONFIG.white, config.whiteShift);
+  allData.push(...whiteData);
+  
+  // 中班
+  const middleData = generateTimeSlotData(config.date, SHIFTS_CONFIG.middle, config.middleShift);
+  allData.push(...middleData);
+  
+  // 夜班
+  const nightData = generateTimeSlotData(config.date, SHIFTS_CONFIG.night, config.nightShift);
+  allData.push(...nightData);
+  
+  return allData;
+}
+
+// ============ 主组件 ============
+export default function SmartPerformanceDashboard() {
+  // 状态
+  const [data, setData] = useState<TimeSlotData[]>([]);
+  const [filteredData, setFilteredData] = useState<TimeSlotData[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedShift, setSelectedShift] = useState<string>('all');
+  const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // 加载数据
-  const loadData = useCallback(async () => {
+  
+  // 智能配置状态
+  const [dailyConfig, setDailyConfig] = useState<DailyConfig>({
+    date: format(new Date(), 'yyyy-MM-dd'),
+    whiteShift: { totalStaff: 65, ...calculateStaffAllocation(65, SHIFTS_CONFIG.white.allocation) },
+    middleShift: { totalStaff: 8, ...calculateStaffAllocation(8, SHIFTS_CONFIG.middle.allocation) },
+    nightShift: { totalStaff: 92, ...calculateStaffAllocation(92, SHIFTS_CONFIG.night.allocation) }
+  });
+  
+  // 更新人数配置
+  const updateStaffConfig = (shift: 'whiteShift' | 'middleShift' | 'nightShift', total: number) => {
+    const config = shift === 'whiteShift' ? SHIFTS_CONFIG.white.allocation 
+                 : shift === 'middleShift' ? SHIFTS_CONFIG.middle.allocation 
+                 : SHIFTS_CONFIG.night.allocation;
+    const allocation = calculateStaffAllocation(total, config);
+    setDailyConfig(prev => ({
+      ...prev,
+      date: selectedDate,
+      [shift]: { totalStaff: total, ...allocation }
+    }));
+  };
+  
+  // 生成数据
+  const generateData = useCallback(() => {
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.date) params.set('date', filters.date);
-      if (filters.timeSlot && filters.timeSlot !== 'all') params.set('timeSlot', filters.timeSlot);
-      if (filters.shiftType && filters.shiftType !== 'all') params.set('shiftType', filters.shiftType);
-      if (filters.frequency && filters.frequency !== 'all') params.set('frequency', filters.frequency);
-
-      const response = await fetch(`/api/logistics?${params.toString()}`);
-      const result = await response.json();
-
-      if (result.success && result.data.length > 0) {
-        setData(result.data);
-        setDataSource('cloud');
-      } else {
-        // 如果云端没有数据，使用演示数据
-        setData(DEMO_DATA);
-        setDataSource('demo');
-      }
-    } catch (error) {
-      console.error('加载数据失败:', error);
-      setData(DEMO_DATA);
-      setDataSource('demo');
-    } finally {
+    setTimeout(() => {
+      const newData = generateDemoData({ ...dailyConfig, date: selectedDate });
+      setData(newData);
+      setFilteredData(newData);
       setLoading(false);
-    }
-  }, [filters]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
+      setNotification({ type: 'success', message: `成功生成 ${newData.length} 条数据` });
+    }, 500);
+  }, [dailyConfig, selectedDate]);
+  
   // 筛选数据
   useEffect(() => {
     let result = [...data];
-
-    if (filters.date) {
-      result = result.filter(item => item.date === filters.date);
+    if (selectedDate) {
+      result = result.filter(item => item.date === selectedDate);
     }
-    if (filters.timeSlot && filters.timeSlot !== 'all') {
-      result = result.filter(item => item.time_slot === filters.timeSlot);
+    if (selectedShift !== 'all') {
+      result = result.filter(item => item.shift === selectedShift);
     }
-    if (filters.shiftType && filters.shiftType !== 'all') {
-      result = result.filter(item => item.shift_type === filters.shiftType);
-    }
-    if (filters.frequency && filters.frequency !== 'all') {
-      result = result.filter(item => item.frequency === filters.frequency);
-    }
-
-    // 根据选中的指标筛选
-    result = result.filter(item => {
-      if (selectedMetrics.length === 0) return true;
-      return selectedMetrics.some(metric => {
-        const value = item[metric as keyof LogisticsData];
-        return value !== undefined && value !== null && value !== 0;
-      });
-    });
-
     setFilteredData(result);
-  }, [data, filters, selectedMetrics]);
-
-  // 计算统计数据
+  }, [data, selectedDate, selectedShift]);
+  
+  // 统计汇总
   const stats = useMemo(() => {
-    const totalUnload = filteredData.reduce((sum, item) => sum + (item.unload_count || 0), 0);
-    const totalPackage = filteredData.reduce((sum, item) => sum + (item.package_count || 0), 0);
-    const totalLoop = filteredData.reduce((sum, item) => sum + (item.loop_count || 0), 0);
-    const totalOtherCost = filteredData.reduce((sum, item) => sum + parseFloat(item.other_cost || '0'), 0);
-    const totalProfit = filteredData.reduce((sum, item) => sum + parseFloat(item.total_profit || '0'), 0);
-
-    return { totalUnload, totalPackage, totalLoop, totalOtherCost, totalProfit };
+    const totalUnload = filteredData.reduce((sum, d) => sum + d.unloadCount, 0);
+    const totalPackage = filteredData.reduce((sum, d) => sum + d.packageCount, 0);
+    const totalLoop = filteredData.reduce((sum, d) => sum + d.loopCount, 0);
+    const totalRevenue = filteredData.reduce((sum, d) => sum + d.totalRevenue, 0);
+    const totalCost = filteredData.reduce((sum, d) => sum + d.totalCost, 0);
+    const totalSalary = filteredData.reduce((sum, d) => sum + d.totalSalary, 0);
+    const totalProfit = filteredData.reduce((sum, d) => sum + d.totalProfit, 0);
+    const totalStaff = filteredData.reduce((sum, d) => sum + d.unloadStaff + d.packageStaff + d.loopStaff + d.reusedStaff, 0);
+    
+    const avgEfficiency = totalStaff > 0 ? (totalUnload + totalPackage + totalLoop) / totalStaff : 0;
+    const profitRate = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    
+    return { totalUnload, totalPackage, totalLoop, totalRevenue, totalCost, totalSalary, totalProfit, totalStaff, avgEfficiency, profitRate };
   }, [filteredData]);
-
+  
   // 图表数据
-  const chartData = useMemo(() => {
-    return filteredData.map(item => ({
-      name: item.time_slot,
-      卸车: item.unload_count || 0,
-      集包: item.package_count || 0,
-      环线: item.loop_count || 0,
-      其他成本: parseFloat(item.other_cost || '0'),
-      利润: parseFloat(item.total_profit || '0'),
+  const trendChartData = useMemo(() => {
+    return filteredData.map(d => ({
+      name: d.timeSlot,
+      卸车: d.unloadCount,
+      集包: d.packageCount,
+      环线: d.loopCount,
+      利润: Math.round(d.totalProfit),
+      薪资: Math.round(d.totalSalary)
     }));
   }, [filteredData]);
-
-  // 饼图数据
-  const pieChartData = useMemo(() => {
-    const selected: { name: string; value: number; color: string }[] = [];
-    
-    if (selectedMetrics.includes('unload_count')) {
-      selected.push({ name: '卸车', value: stats.totalUnload, color: COLORS[0] });
-    }
-    if (selectedMetrics.includes('package_count')) {
-      selected.push({ name: '集包', value: stats.totalPackage, color: COLORS[1] });
-    }
-    if (selectedMetrics.includes('loop_count')) {
-      selected.push({ name: '环线', value: stats.totalLoop, color: COLORS[2] });
-    }
-    if (selectedMetrics.includes('other_cost')) {
-      selected.push({ name: '其他成本', value: stats.totalOtherCost, color: COLORS[3] });
-    }
-    
-    return selected;
-  }, [selectedMetrics, stats]);
-
-  // 获取最大值用于可视化
-  const maxValues = useMemo(() => {
-    return {
-      unload_count: Math.max(...filteredData.map(d => d.unload_count || 0), 1),
-      package_count: Math.max(...filteredData.map(d => d.package_count || 0), 1),
-      loop_count: Math.max(...filteredData.map(d => d.loop_count || 0), 1),
-      other_cost: Math.max(...filteredData.map(d => parseFloat(d.other_cost || '0')), 1),
+  
+  const profitChartData = useMemo(() => {
+    const byShift = {
+      white: { revenue: 0, cost: 0, profit: 0 },
+      middle: { revenue: 0, cost: 0, profit: 0 },
+      night: { revenue: 0, cost: 0, profit: 0 }
     };
-  }, [filteredData]);
-
-  // 处理Excel上传
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    setNotification(null);
-
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const arrayBuffer = e.target?.result;
-          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
-
-          // 解析并转换数据
-          const records: LogisticsData[] = jsonData.map(row => {
-            const dateValue = row['日期'] || row['date'] || row['DATE'];
-            const timeSlotValue = row['时间段'] || row['time_slot'] || row['TIME_SLOT'] || row['时段'];
-            
-            return {
-              date: parseExcelDate(dateValue),
-              time_slot: String(timeSlotValue || '').trim(),
-              shift_type: String(row['班次'] || row['shift_type'] || row['SHIFT_TYPE'] || '白班').trim(),
-              frequency: String(row['频次'] || row['frequency'] || row['FREQUENCY'] || '进口').trim(),
-              unload_count: Number(row['卸车'] || row['unload_count'] || row['UNLOAD_COUNT'] || 0),
-              package_count: Number(row['集包'] || row['package_count'] || row['PACKAGE_COUNT'] || 0),
-              loop_count: Number(row['环线'] || row['loop_count'] || row['LOOP_COUNT'] || 0),
-              other_cost: String(row['其他成本'] || row['other_cost'] || row['OTHER_COST'] || '0'),
-              total_profit: String(row['总利润'] || row['total_profit'] || row['TOTAL_PROFIT'] || '0'),
-            };
-          }).filter(record => record.date && record.time_slot);
-
-          if (records.length === 0) {
-            throw new Error('未找到有效数据，请检查文件格式');
-          }
-
-          // 上传到云端
-          const response = await fetch('/api/logistics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records }),
-          });
-
-          const result = await response.json();
-          
-          if (result.success) {
-            setNotification({ type: 'success', message: `成功导入 ${result.count} 条数据` });
-            loadData();
-          } else {
-            throw new Error(result.error || '上传失败');
-          }
-        } catch (error) {
-          setNotification({ type: 'error', message: error instanceof Error ? error.message : '解析失败' });
-        } finally {
-          setUploading(false);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } catch {
-      setNotification({ type: 'error', message: '读取文件失败' });
-      setUploading(false);
-    }
-
-    // 清空input
-    event.target.value = '';
-  };
-
-  // 清空数据
-  const handleClearData = async () => {
-    if (!confirm('确定要清空所有数据吗？')) return;
-
-    try {
-      const response = await fetch('/api/logistics?action=clear', { method: 'DELETE' });
-      const result = await response.json();
-      
-      if (result.success) {
-        setNotification({ type: 'success', message: '数据已清空' });
-        setData([]);
-        setFilteredData([]);
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      setNotification({ type: 'error', message: error instanceof Error ? error.message : '清空失败' });
-    }
-  };
-
-  // 下载模板
-  const handleDownloadTemplate = () => {
-    const template = [
-      { 日期: '2026-04-01', 时间段: '0700-0800', 班次: '白班', 频次: '进口', 卸车: 0, 集包: 0, 环线: 0, 其他成本: 0, 总利润: 0 },
-      { 日期: '2026-04-01', 时间段: '0800-0900', 班次: '白班', 频次: '出口', 卸车: 0, 集包: 0, 环线: 0, 其他成本: 0, 总利润: 0 },
+    
+    filteredData.forEach(d => {
+      const key = d.shift === '白班' ? 'white' : d.shift === '中班' ? 'middle' : 'night';
+      byShift[key].revenue += d.totalRevenue;
+      byShift[key].cost += d.totalCost;
+      byShift[key].profit += d.totalProfit;
+    });
+    
+    return [
+      { name: '白班', revenue: Math.round(byShift.white.revenue), cost: Math.round(byShift.white.cost), profit: Math.round(byShift.white.profit) },
+      { name: '中班', revenue: Math.round(byShift.middle.revenue), cost: Math.round(byShift.middle.cost), profit: Math.round(byShift.middle.profit) },
+      { name: '夜班', revenue: Math.round(byShift.night.revenue), cost: Math.round(byShift.night.cost), profit: Math.round(byShift.night.profit) }
     ];
-    const ws = XLSX.utils.json_to_sheet(template);
+  }, [filteredData]);
+  
+  const pieChartData = useMemo(() => [
+    { name: '卸车', value: stats.totalUnload, color: COLORS[0] },
+    { name: '集包', value: stats.totalPackage, color: COLORS[1] },
+    { name: '环线', value: stats.totalLoop, color: COLORS[2] }
+  ], [stats]);
+  
+  const staffChartData = useMemo(() => {
+    return filteredData.map(d => ({
+      name: d.timeSlot,
+      卸车人数: d.unloadStaff,
+      集包人数: d.packageStaff,
+      环线人数: d.loopStaff,
+      复用人数: d.reusedStaff
+    }));
+  }, [filteredData]);
+  
+  const efficiencyChartData = useMemo(() => {
+    return filteredData.map(d => ({
+      name: d.timeSlot,
+      卸车人效: Math.round(d.unloadEfficiency),
+      集包人效: Math.round(d.packageEfficiency),
+      环线人效: Math.round(d.loopEfficiency)
+    }));
+  }, [filteredData]);
+  
+  const revenueCostChartData = useMemo(() => {
+    return filteredData.map(d => ({
+      name: d.timeSlot,
+      收入: Math.round(d.totalRevenue),
+      成本: Math.round(d.totalCost),
+      薪资: Math.round(d.totalSalary)
+    }));
+  }, [filteredData]);
+  
+  const radarChartData = useMemo(() => {
+    if (filteredData.length === 0) return [];
+    const avg = {
+      unloadEff: 0, packageEff: 0, loopEff: 0,
+      profit: 0, revenue: 0, efficiency: 0
+    };
+    filteredData.forEach(d => {
+      avg.unloadEff += d.unloadEfficiency;
+      avg.packageEff += d.packageEfficiency;
+      avg.loopEff += d.loopEfficiency;
+      avg.profit += d.totalProfit;
+      avg.revenue += d.totalRevenue;
+      avg.efficiency += (d.unloadEfficiency + d.packageEfficiency + d.loopEfficiency) / 3;
+    });
+    const len = filteredData.length;
+    return [{
+      subject: '卸车人效', A: Math.round(avg.unloadEff / len), fullMark: 1500,
+    }, {
+      subject: '集包人效', A: Math.round(avg.packageEff / len), fullMark: 1500,
+    }, {
+      subject: '环线人效', A: Math.round(avg.loopEff / len), fullMark: 1500,
+    }, {
+      subject: '利润', A: Math.round(avg.profit / len), fullMark: 5000,
+    }, {
+      subject: '收入', A: Math.round(avg.revenue / len), fullMark: 20000,
+    }, {
+      subject: '综合效率', A: Math.round(avg.efficiency / len), fullMark: 1500,
+    }];
+  }, [filteredData]);
+  
+  // Excel导出
+  const exportToExcel = () => {
+    const exportData = filteredData.map(d => ({
+      '日期': d.date,
+      '时段': d.timeSlot,
+      '班次': d.shift,
+      '频次': d.frequency,
+      '卸车量': d.unloadCount,
+      '集包量': d.packageCount,
+      '环线量': d.loopCount,
+      '卸车人数': d.unloadStaff,
+      '集包人数': d.packageStaff,
+      '环线人数': d.loopStaff,
+      '复用人数': d.reusedStaff,
+      '卸车人效': Math.round(d.unloadEfficiency),
+      '集包人效': Math.round(d.packageEfficiency),
+      '环线人效': Math.round(d.loopEfficiency),
+      '卸车收入': d.unloadPrice.toFixed(2),
+      '集包收入': d.packagePrice.toFixed(2),
+      '环线收入': d.loopPrice.toFixed(2),
+      '卸车薪资': d.unloadSalary.toFixed(2),
+      '集包薪资': d.packageSalary.toFixed(2),
+      '环线薪资': d.loopSalary.toFixed(2),
+      '卸车盈亏': d.unloadProfit.toFixed(2),
+      '集包盈亏': d.packageProfit.toFixed(2),
+      '环线盈亏': d.loopProfit.toFixed(2),
+      '其他成本': d.otherCost.toFixed(2),
+      '总收入': d.totalRevenue.toFixed(2),
+      '总成本': d.totalCost.toFixed(2),
+      '总薪资': d.totalSalary.toFixed(2),
+      '总盈亏': d.totalProfit.toFixed(2)
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '数据模板');
-    XLSX.writeFile(wb, '物流数据导入模板.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, '绩效数据');
+    XLSX.writeFile(wb, `绩效数据_${selectedDate}.xlsx`);
+    setNotification({ type: 'success', message: '数据导出成功' });
   };
-
+  
   // 清除通知
   useEffect(() => {
     if (notification) {
@@ -377,13 +457,19 @@ export default function LogisticsDashboard() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
-
-  // 重置筛选
-  const handleResetFilters = () => {
-    setFilters({ date: '', timeSlot: '', shiftType: '', frequency: '' });
-    setSelectedMetrics(['unload_count', 'package_count', 'loop_count']);
+  
+  // 初始加载演示数据
+  useEffect(() => {
+    generateData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  const getProfitColor = (value: number) => {
+    if (value > 0) return 'text-emerald-500';
+    if (value < 0) return 'text-red-500';
+    return 'text-slate-500';
   };
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       {/* 通知栏 */}
@@ -395,472 +481,615 @@ export default function LogisticsDashboard() {
           <span>{notification.message}</span>
         </div>
       )}
-
+      
       {/* 头部 */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 dark:bg-slate-900/80 dark:border-slate-700 sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                物流数据看板
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
+                智能物流绩效分析系统
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                实时监控业务数据 · 数据来源：
-                <Badge variant={dataSource === 'cloud' ? 'default' : 'secondary'}>
-                  {dataSource === 'cloud' ? '云端' : '演示数据'}
-                </Badge>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                输入总人数，智能分配到各时段各环节，自动计算人效薪资盈亏
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                刷新
+              <Button variant="outline" size="sm" onClick={generateData} disabled={loading}>
+                <Sparkles className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                智能生成
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+              <Button variant="outline" size="sm" onClick={exportToExcel} disabled={filteredData.length === 0}>
                 <Download className="w-4 h-4 mr-2" />
-                下载模板
-              </Button>
-              <Button variant="destructive" size="sm" onClick={handleClearData}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                清空数据
+                导出Excel
               </Button>
             </div>
           </div>
         </div>
       </header>
-
+      
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* 智能配置区域 */}
+        <Card className="border-2 border-blue-200 dark:border-blue-800">
+          <CardHeader className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-t-lg">
+            <CardTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-blue-500" />
+              智能人员配置
+              <Badge variant="outline" className="ml-2">修改总人数自动分配</Badge>
+            </CardTitle>
+            <CardDescription>只需输入各班次总人数，系统自动智能分配到各时段各环节</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* 白班配置 */}
+              <Card className="border-orange-200 dark:border-orange-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-orange-500" />
+                    白班 (07:00-18:00)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">总人数 ({SHIFTS_CONFIG.white.staffRange[0]}-{SHIFTS_CONFIG.white.staffRange[1]}人)</label>
+                      <Input
+                        type="number"
+                        value={dailyConfig.whiteShift.totalStaff}
+                        onChange={(e) => updateStaffConfig('whiteShift', parseInt(e.target.value) || 0)}
+                        className="mt-1"
+                        min={SHIFTS_CONFIG.white.staffRange[0]}
+                        max={SHIFTS_CONFIG.white.staffRange[1]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between"><span>卸车:</span><span className="font-semibold">{dailyConfig.whiteShift.unloadStaff}人</span></div>
+                      <div className="flex justify-between"><span>集包:</span><span className="font-semibold">{dailyConfig.whiteShift.packageStaff}人</span></div>
+                      <div className="flex justify-between"><span>环线:</span><span className="font-semibold">{dailyConfig.whiteShift.loopStaff}人</span></div>
+                      <div className="flex justify-between"><span>复用:</span><span className="font-semibold">{dailyConfig.whiteShift.reusedStaff}人</span></div>
+                    </div>
+                    <Progress value={(dailyConfig.whiteShift.totalStaff / 70) * 100} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* 中班配置 */}
+              <Card className="border-purple-200 dark:border-purple-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500" />
+                    中班 (11:30-00:00)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">总人数 ({SHIFTS_CONFIG.middle.staffRange[0]}-{SHIFTS_CONFIG.middle.staffRange[1]}人)</label>
+                      <Input
+                        type="number"
+                        value={dailyConfig.middleShift.totalStaff}
+                        onChange={(e) => updateStaffConfig('middleShift', parseInt(e.target.value) || 0)}
+                        className="mt-1"
+                        min={SHIFTS_CONFIG.middle.staffRange[0]}
+                        max={SHIFTS_CONFIG.middle.staffRange[1]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between"><span>卸车:</span><span className="font-semibold">{dailyConfig.middleShift.unloadStaff}人</span></div>
+                      <div className="flex justify-between"><span>集包:</span><span className="font-semibold">{dailyConfig.middleShift.packageStaff}人</span></div>
+                      <div className="flex justify-between"><span>环线:</span><span className="font-semibold">{dailyConfig.middleShift.loopStaff}人</span></div>
+                      <div className="flex justify-between"><span>复用:</span><span className="font-semibold">{dailyConfig.middleShift.reusedStaff}人</span></div>
+                    </div>
+                    <Progress value={(dailyConfig.middleShift.totalStaff / 10) * 100} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* 夜班配置 */}
+              <Card className="border-indigo-200 dark:border-indigo-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                    夜班 (18:00-07:00)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">总人数 ({SHIFTS_CONFIG.night.staffRange[0]}-{SHIFTS_CONFIG.night.staffRange[1]}人)</label>
+                      <Input
+                        type="number"
+                        value={dailyConfig.nightShift.totalStaff}
+                        onChange={(e) => updateStaffConfig('nightShift', parseInt(e.target.value) || 0)}
+                        className="mt-1"
+                        min={SHIFTS_CONFIG.night.staffRange[0]}
+                        max={SHIFTS_CONFIG.night.staffRange[1]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between"><span>卸车:</span><span className="font-semibold">{dailyConfig.nightShift.unloadStaff}人</span></div>
+                      <div className="flex justify-between"><span>集包:</span><span className="font-semibold">{dailyConfig.nightShift.packageStaff}人</span></div>
+                      <div className="flex justify-between"><span>环线:</span><span className="font-semibold">{dailyConfig.nightShift.loopStaff}人</span></div>
+                      <div className="flex justify-between"><span>复用:</span><span className="font-semibold">{dailyConfig.nightShift.reusedStaff}人</span></div>
+                    </div>
+                    <Progress value={(dailyConfig.nightShift.totalStaff / 100) * 100} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <div className="mt-4 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">选择日期:</label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <Button onClick={generateData} disabled={loading} className="bg-gradient-to-r from-blue-500 to-cyan-500">
+                <Zap className="w-4 h-4 mr-2" />
+                一键生成数据
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-blue-600">
-            <CardContent className="p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">卸车总量</p>
-                  <p className="text-white text-2xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+                  <p className="text-blue-100 text-xs">卸车总量</p>
+                  <p className="text-white text-xl font-bold">{stats.totalUnload.toLocaleString()}</p>
                 </div>
-                <Truck className="w-10 h-10 text-blue-200" />
+                <Truck className="w-8 h-8 text-blue-200" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-emerald-600">
-            <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-emerald-100 text-sm">集包总量</p>
-                  <p className="text-white text-2xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+                  <p className="text-emerald-100 text-xs">集包总量</p>
+                  <p className="text-white text-xl font-bold">{stats.totalPackage.toLocaleString()}</p>
                 </div>
-                <Package className="w-10 h-10 text-emerald-200" />
+                <Package className="w-8 h-8 text-emerald-200" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-amber-600">
-            <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-amber-100 text-sm">环线总量</p>
-                  <p className="text-white text-2xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+                  <p className="text-amber-100 text-xs">环线总量</p>
+                  <p className="text-white text-xl font-bold">{stats.totalLoop.toLocaleString()}</p>
                 </div>
-                <RotateCw className="w-10 h-10 text-amber-200" />
+                <RotateCw className="w-8 h-8 text-amber-200" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-red-500 to-red-600 border-red-600">
-            <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-100 text-sm">其他成本</p>
-                  <p className="text-white text-2xl font-bold">¥{stats.totalOtherCost.toLocaleString()}</p>
+                  <p className="text-cyan-100 text-xs">总人数</p>
+                  <p className="text-white text-xl font-bold">{stats.totalStaff}</p>
                 </div>
-                <DollarSign className="w-10 h-10 text-red-200" />
+                <Users className="w-8 h-8 text-cyan-200" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-purple-600">
-            <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-violet-500 to-violet-600 text-white">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-100 text-sm">总利润</p>
-                  <p className={`text-white text-2xl font-bold ${getProfitColor(stats.totalProfit)}`}>
-                    ¥{stats.totalProfit.toLocaleString()}
-                  </p>
+                  <p className="text-violet-100 text-xs">平均人效</p>
+                  <p className="text-white text-xl font-bold">{Math.round(stats.avgEfficiency)}</p>
                 </div>
-                <TrendingUp className="w-10 h-10 text-purple-200" />
+                <Target className="w-8 h-8 text-violet-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-teal-100 text-xs">总收入</p>
+                  <p className="text-white text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-teal-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-rose-100 text-xs">总薪资</p>
+                  <p className="text-white text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+                </div>
+                <DollarSign className="w-8 h-8 text-rose-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} text-white`}>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-xs">总盈亏</p>
+                  <p className="text-white text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                </div>
+                {stats.totalProfit >= 0 ? <TrendingUp className="w-8 h-8 text-green-200" /> : <TrendingDown className="w-8 h-8 text-red-200" />}
               </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* 筛选区域 */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="w-5 h-5" />
-              数据筛选
-            </CardTitle>
-            <CardDescription>选择日期和时间段来筛选数据</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">日期</label>
-                <Input
-                  type="date"
-                  value={filters.date}
-                  onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">时间段</label>
-                <Select value={filters.timeSlot || 'all'} onValueChange={(v) => setFilters({ ...filters, timeSlot: v === 'all' ? '' : v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="全部时段" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部时段</SelectItem>
-                    {TIME_SLOTS.map(slot => (
-                      <SelectItem key={slot} value={slot}>{slot}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">班次</label>
-                <Select value={filters.shiftType || 'all'} onValueChange={(v) => setFilters({ ...filters, shiftType: v === 'all' ? '' : v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="全部班次" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部班次</SelectItem>
-                    {SHIFT_TYPES.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">频次</label>
-                <Select value={filters.frequency || 'all'} onValueChange={(v) => setFilters({ ...filters, frequency: v === 'all' ? '' : v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="全部频次" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部频次</SelectItem>
-                    {FREQUENCY_TYPES.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button variant="outline" onClick={handleResetFilters} className="w-full">
-                  清除筛选
-                </Button>
-              </div>
-            </div>
-
-            {/* 指标选择 */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">显示指标</label>
-              <div className="flex flex-wrap gap-4">
-                {METRICS_CONFIG.map((metric) => {
-                  const Icon = metric.icon;
-                  const isSelected = selectedMetrics.includes(metric.key);
-                  return (
-                    <label
-                      key={metric.key}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
-                        isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedMetrics([...selectedMetrics, metric.key]);
-                          } else {
-                            setSelectedMetrics(selectedMetrics.filter(m => m !== metric.key));
-                          }
-                        }}
-                      />
-                      <Icon className="w-4 h-4" style={{ color: metric.color }} />
-                      <span className="text-sm font-medium">{metric.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
+        
         {/* 图表区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 趋势图 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-500" />
-                业务量趋势
-              </CardTitle>
-              <CardDescription>各时间段业务量变化趋势</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      {selectedMetrics.includes('unload_count') && (
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="grid grid-cols-5 w-full">
+            <TabsTrigger value="overview">总览</TabsTrigger>
+            <TabsTrigger value="trend">趋势</TabsTrigger>
+            <TabsTrigger value="profit">盈亏</TabsTrigger>
+            <TabsTrigger value="staff">人员</TabsTrigger>
+            <TabsTrigger value="efficiency">人效</TabsTrigger>
+          </TabsList>
+          
+          {/* 总览页 */}
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 业务量占比 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <PieChartIcon className="w-5 h-5 text-blue-500" />
+                    业务量占比
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
+                          {pieChartData.map((entry: { name: string; value: number; color: string }, index: number) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* 雷达图 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Activity className="w-5 h-5 text-purple-500" />
+                    综合效能分析
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={radarChartData}>
+                        <PolarGrid stroke="#e2e8f0" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+                        <PolarRadiusAxis tick={{ fontSize: 10 }} />
+                        <Radar name="效能" dataKey="A" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                        <Tooltip />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* 班次对比 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BarChart3 className="w-5 h-5 text-cyan-500" />
+                  班次盈亏对比
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={profitChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                      <Legend />
+                      <Bar dataKey="revenue" name="收入" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="cost" name="成本" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="profit" name="利润" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* 趋势页 */}
+          <TabsContent value="trend" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <LineChartIcon className="w-5 h-5 text-emerald-500" />
+                  业务量与盈亏趋势
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trendChartData}>
+                      <defs>
                         <linearGradient id="colorUnload" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
                         </linearGradient>
-                      )}
-                      {selectedMetrics.includes('package_count') && (
                         <linearGradient id="colorPackage" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
                         </linearGradient>
-                      )}
-                      {selectedMetrics.includes('loop_count') && (
                         <linearGradient id="colorLoop" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
                           <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
                         </linearGradient>
-                      )}
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                      formatter={(value: number) => value.toLocaleString()}
-                    />
-                    <Legend />
-                    {selectedMetrics.includes('unload_count') && (
-                      <Area type="monotone" dataKey="卸车" stroke="#3b82f6" fillOpacity={1} fill="url(#colorUnload)" />
-                    )}
-                    {selectedMetrics.includes('package_count') && (
-                      <Area type="monotone" dataKey="集包" stroke="#10b981" fillOpacity={1} fill="url(#colorPackage)" />
-                    )}
-                    {selectedMetrics.includes('loop_count') && (
-                      <Area type="monotone" dataKey="环线" stroke="#f59e0b" fillOpacity={1} fill="url(#colorLoop)" />
-                    )}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 饼图 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-emerald-500" />
-                业务量占比
-              </CardTitle>
-              <CardDescription>各业务类型占总业务量的比例</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {pieChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                      formatter={(value: number) => value.toLocaleString()}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 柱状图 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart className="w-5 h-5 text-purple-500" />
-              时间段对比
-            </CardTitle>
-            <CardDescription>各时间段业务量柱状对比</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} stroke="#94a3b8" width={80} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                    formatter={(value: number) => value.toLocaleString()}
-                  />
-                  <Legend />
-                  {selectedMetrics.includes('unload_count') && (
-                    <Bar dataKey="卸车" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                  )}
-                  {selectedMetrics.includes('package_count') && (
-                    <Bar dataKey="集包" fill="#10b981" radius={[0, 4, 4, 0]} />
-                  )}
-                  {selectedMetrics.includes('loop_count') && (
-                    <Bar dataKey="环线" fill="#f59e0b" radius={[0, 4, 4, 0]} />
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} yAxisId="left" />
+                      <YAxis tick={{ fontSize: 11 }} yAxisId="right" orientation="right" />
+                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Legend />
+                      <Area yAxisId="left" type="monotone" dataKey="卸车" stroke="#3b82f6" fillOpacity={1} fill="url(#colorUnload)" />
+                      <Area yAxisId="left" type="monotone" dataKey="集包" stroke="#10b981" fillOpacity={1} fill="url(#colorPackage)" />
+                      <Area yAxisId="left" type="monotone" dataKey="环线" stroke="#f59e0b" fillOpacity={1} fill="url(#colorLoop)" />
+                      <Line yAxisId="right" type="monotone" dataKey="利润" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="薪资" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* 盈亏页 */}
+          <TabsContent value="profit" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="w-5 h-5 text-green-500" />
+                    收入与成本对比
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueCostChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                        <Legend />
+                        <Bar dataKey="收入" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="成本" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <DollarSign className="w-5 h-5 text-amber-500" />
+                    薪资分布
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueCostChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                        <Legend />
+                        <Bar dataKey="薪资" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* 数据表格 */}
+            
+            {/* 盈亏明细表 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Calculator className="w-5 h-5 text-blue-500" />
+                  盈亏明细
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>时段</TableHead>
+                        <TableHead>卸车盈亏</TableHead>
+                        <TableHead>集包盈亏</TableHead>
+                        <TableHead>环线盈亏</TableHead>
+                        <TableHead>其他成本</TableHead>
+                        <TableHead className="text-right">总盈亏</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredData.map((d, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{d.timeSlot}</TableCell>
+                          <TableCell className={getProfitColor(d.unloadProfit)}>¥{d.unloadProfit.toFixed(2)}</TableCell>
+                          <TableCell className={getProfitColor(d.packageProfit)}>¥{d.packageProfit.toFixed(2)}</TableCell>
+                          <TableCell className={getProfitColor(d.loopProfit)}>¥{d.loopProfit.toFixed(2)}</TableCell>
+                          <TableCell className="text-red-500">-¥{d.otherCost.toFixed(2)}</TableCell>
+                          <TableCell className={`text-right font-bold ${getProfitColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* 人员页 */}
+          <TabsContent value="staff" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="w-5 h-5 text-violet-500" />
+                  各时段人员配置
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={staffChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="卸车人数" fill="#3b82f6" stackId="a" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="集包人数" fill="#10b981" stackId="a" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="环线人数" fill="#f59e0b" stackId="a" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="复用人数" fill="#8b5cf6" stackId="a" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* 人效页 */}
+          <TabsContent value="efficiency" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Target className="w-5 h-5 text-teal-500" />
+                  各时段人效对比
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={efficiencyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Legend />
+                      <Line type="monotone" dataKey="卸车人效" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="集包人效" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="环线人效" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+        
+        {/* 数据明细表 */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-blue-500" />
                 数据明细
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={selectedShift} onValueChange={setSelectedShift}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="全部班次" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部班次</SelectItem>
+                    <SelectItem value="白班">白班</SelectItem>
+                    <SelectItem value="中班">中班</SelectItem>
+                    <SelectItem value="夜班">夜班</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline">{filteredData.length} 条记录</Badge>
               </div>
-              <Badge variant="outline">{filteredData.length} 条记录</Badge>
-            </CardTitle>
-            <CardDescription>展示筛选后的详细数据，支持可视化背景条</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10">
                   <TableRow>
-                    <TableHead className="w-[120px]">日期</TableHead>
-                    <TableHead className="w-[100px]">时间段</TableHead>
-                    <TableHead className="w-[80px]">班次</TableHead>
-                    <TableHead className="w-[80px]">频次</TableHead>
-                    <TableHead className="text-right">卸车</TableHead>
-                    <TableHead className="text-right">集包</TableHead>
-                    <TableHead className="text-right">环线</TableHead>
-                    <TableHead className="text-right">其他成本</TableHead>
-                    <TableHead className="text-right">总利润</TableHead>
+                    <TableHead className="w-[80px]">时段</TableHead>
+                    <TableHead className="w-[60px]">班次</TableHead>
+                    <TableHead className="text-right">卸车量</TableHead>
+                    <TableHead className="text-right">卸车人</TableHead>
+                    <TableHead className="text-right">卸车人效</TableHead>
+                    <TableHead className="text-right">集包量</TableHead>
+                    <TableHead className="text-right">集包人</TableHead>
+                    <TableHead className="text-right">集包人效</TableHead>
+                    <TableHead className="text-right">环线量</TableHead>
+                    <TableHead className="text-right">环线人</TableHead>
+                    <TableHead className="text-right">环线人效</TableHead>
+                    <TableHead className="text-right">收入</TableHead>
+                    <TableHead className="text-right">薪资</TableHead>
+                    <TableHead className="text-right">盈亏</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-slate-500">
-                        暂无数据
+                  {filteredData.map((d, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-medium">{d.timeSlot}</TableCell>
+                      <TableCell>
+                        <Badge variant={d.shift === '白班' ? 'default' : d.shift === '中班' ? 'secondary' : 'outline'}>
+                          {d.shift}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{d.unloadCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{d.unloadStaff}</TableCell>
+                      <TableCell className="text-right">{Math.round(d.unloadEfficiency)}</TableCell>
+                      <TableCell className="text-right">{d.packageCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{d.packageStaff}</TableCell>
+                      <TableCell className="text-right">{Math.round(d.packageEfficiency)}</TableCell>
+                      <TableCell className="text-right">{d.loopCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{d.loopStaff}</TableCell>
+                      <TableCell className="text-right">{Math.round(d.loopEfficiency)}</TableCell>
+                      <TableCell className="text-right">¥{Math.round(d.totalRevenue)}</TableCell>
+                      <TableCell className="text-right">¥{Math.round(d.totalSalary)}</TableCell>
+                      <TableCell className={`text-right font-bold ${getProfitColor(d.totalProfit)}`}>
+                        ¥{Math.round(d.totalProfit)}
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    filteredData.map((row, index) => (
-                      <TableRow key={`${row.date}-${row.time_slot}-${index}`}>
-                        <TableCell className="font-medium">{row.date}</TableCell>
-                        <TableCell>{row.time_slot}</TableCell>
-                        <TableCell>
-                          <Badge variant={row.shift_type === '白班' ? 'default' : 'secondary'}>
-                            {row.shift_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{row.frequency}</Badge>
-                        </TableCell>
-                        {/* 卸车 - 带可视化背景条 */}
-                        <TableCell className="text-right relative">
-                          <div className="relative">
-                            <div
-                              className="absolute left-0 top-0 h-full bg-blue-500/20 rounded transition-all"
-                              style={{ width: getBarWidth(row.unload_count || 0, maxValues.unload_count) }}
-                            />
-                            <span className="relative font-semibold">{row.unload_count?.toLocaleString() || 0}</span>
-                          </div>
-                        </TableCell>
-                        {/* 集包 */}
-                        <TableCell className="text-right relative">
-                          <div className="relative">
-                            <div
-                              className="absolute left-0 top-0 h-full bg-emerald-500/20 rounded transition-all"
-                              style={{ width: getBarWidth(row.package_count || 0, maxValues.package_count) }}
-                            />
-                            <span className="relative font-semibold">{row.package_count?.toLocaleString() || 0}</span>
-                          </div>
-                        </TableCell>
-                        {/* 环线 */}
-                        <TableCell className="text-right relative">
-                          <div className="relative">
-                            <div
-                              className="absolute left-0 top-0 h-full bg-amber-500/20 rounded transition-all"
-                              style={{ width: getBarWidth(row.loop_count || 0, maxValues.loop_count) }}
-                            />
-                            <span className="relative font-semibold">{row.loop_count?.toLocaleString() || 0}</span>
-                          </div>
-                        </TableCell>
-                        {/* 其他成本 */}
-                        <TableCell className={`text-right font-semibold ${getProfitColor(-parseFloat(row.other_cost || '0'))}`}>
-                          ¥{parseFloat(row.other_cost || '0').toLocaleString()}
-                        </TableCell>
-                        {/* 总利润 */}
-                        <TableCell className={`text-right font-semibold ${getProfitColor(row.total_profit || '0')}`}>
-                          ¥{parseFloat(row.total_profit || '0').toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
-
-        {/* 数据导入区域 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5 text-green-500" />
-              数据导入
-            </CardTitle>
-            <CardDescription>
-              上传 Excel 文件导入数据 · 支持 .xlsx, .xls 格式 · 自动解析日期格式
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-              <label htmlFor="excel-upload" className="cursor-pointer">
-                <div className={`flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <FileSpreadsheet className="w-5 h-5" />
-                  <span className="font-medium">{uploading ? '导入中...' : '上传 Excel 文件'}</span>
-                </div>
-                <input
-                  id="excel-upload"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleExcelUpload}
-                  className="hidden"
-                  disabled={uploading}
-                />
-              </label>
-              <div className="text-sm text-slate-500">
-                <p>Excel 列头要求：日期, 时间段, 班次, 频次, 卸车, 集包, 环线, 其他成本, 总利润</p>
-                <p className="mt-1">日期支持多种格式：2026/4/1, 1-Apr-2026, 2026-04-01 等</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </main>
-
+      
       {/* 页脚 */}
       <footer className="border-t border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-slate-500">
-          物流数据看板 · 数据实时同步至云端
+          智能物流绩效分析系统 · 自动计算人效薪资盈亏
         </div>
       </footer>
     </div>
