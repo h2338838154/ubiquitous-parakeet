@@ -177,9 +177,15 @@ export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ succe
   }
 }
 
-// 批量保存所有班次配置到云端
+// 批量保存所有班次配置到云端（同时保存到本地存储）
 export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
+  console.log('[saveAllShiftConfigsCloud] 保存配置:', configs);
+  
+  // 先保存到本地存储
+  saveShiftConfigLocal(configs);
+  
   if (!supabase) {
+    console.log('[saveAllShiftConfigsCloud] 云端不可用，仅保存到本地存储');
     return { success: false, error: '云端连接不可用' };
   }
   
@@ -198,15 +204,18 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
         .from('shift_configs')
         .upsert(record, { onConflict: 'date' });
       
-      // 检查错误：如果 error 不存在或为空对象，视为成功
       if (error && Object.keys(error).length > 0) {
-        console.warn('Save shift config warning:', error);
+        console.warn('[saveAllShiftConfigsCloud] 云端保存失败:', record.date, error);
+      } else {
+        console.log('[saveAllShiftConfigsCloud] 成功保存到云端:', record.date);
       }
     }
+    // 即使云端部分失败，也返回成功（因为本地存储已保存）
     return { success: true };
   } catch (err) {
-    console.warn('Save shift config failed:', err);
-    return { success: false, error: '保存班次配置失败' };
+    console.warn('[saveAllShiftConfigsCloud] 云端保存失败，使用本地存储:', err);
+    // 本地存储已保存，返回部分成功
+    return { success: true, error: '已保存到本地存储，云端保存失败' };
   }
 }
 
@@ -221,10 +230,39 @@ export function loadShiftConfig(): { data: ShiftConfig | null } {
   return { data: null };
 }
 
-// 从云端加载班次配置
+// 保存班次配置到本地存储（按日期存储多个配置）
+export function saveShiftConfigLocal(configs: DailyStaffConfig): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('shift_configs_local', JSON.stringify(configs));
+    console.log('[saveShiftConfigLocal] 已保存到本地存储:', configs);
+  }
+}
+
+// 从本地存储加载班次配置
+export function loadShiftConfigLocal(): DailyStaffConfig | null {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('shift_configs_local');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        console.log('[loadShiftConfigLocal] 从本地存储加载:', data);
+        return data;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+// 从云端加载班次配置（带本地存储备份）
 export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
+  // 优先尝试从本地存储加载
+  const localData = loadShiftConfigLocal();
+  
   if (!supabase) {
-    return { data: null, error: '云端连接不可用' };
+    console.log('[loadShiftConfigCloud] 云端不可用，使用本地存储');
+    return { data: localData, error: '云端连接不可用，使用本地存储' };
   }
   
   try {
@@ -233,10 +271,17 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
       .select('*')
       .order('date', { ascending: true });
     
+    console.log('[loadShiftConfigCloud] 查询结果:', { data, error });
+    
     // 检查错误：如果 error 不存在或为空对象，视为成功
     if (error && Object.keys(error).length > 0) {
-      console.warn('Load shift config warning:', error);
-      // 不阻塞功能，继续尝试解析数据
+      console.warn('[loadShiftConfigCloud] 云端加载失败:', error);
+      // 云端加载失败，使用本地存储作为备份
+      if (localData) {
+        console.log('[loadShiftConfigCloud] 使用本地存储备份');
+        return { data: localData, error: '使用本地存储备份' };
+      }
+      return { data: null, error: error.message };
     }
     
     if (data && data.length > 0) {
@@ -248,11 +293,26 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
           night: row.night ?? 95
         };
       });
+      console.log('[loadShiftConfigCloud] 云端配置:', configs);
+      // 同步保存到本地存储作为备份
+      saveShiftConfigLocal(configs);
       return { data: configs };
+    }
+    
+    console.log('[loadShiftConfigCloud] 云端无数据');
+    // 无云端数据，尝试使用本地存储
+    if (localData) {
+      console.log('[loadShiftConfigCloud] 使用本地存储数据');
+      return { data: localData };
     }
     return { data: null };
   } catch (err) {
-    console.warn('Load shift config failed:', err);
+    console.warn('[loadShiftConfigCloud] 加载失败:', err);
+    // 加载失败，使用本地存储作为备份
+    if (localData) {
+      console.log('[loadShiftConfigCloud] 使用本地存储备份');
+      return { data: localData, error: '使用本地存储备份' };
+    }
     return { data: null, error: '加载班次配置失败' };
   }
 }

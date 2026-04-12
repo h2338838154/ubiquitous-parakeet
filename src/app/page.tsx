@@ -282,6 +282,7 @@ export default function SmartPerformanceDashboard() {
           // 无论是否有业务数据，都尝试加载班次配置
           const cloudConfig = await loadShiftConfigCloud();
           const savedStaffConfig = cloudConfig.data || {};
+          console.log('[checkCloudAndLoad] 云端班次配置:', savedStaffConfig);
           
           if (data && data.length > 0) {
             // 解析日期（可能是Excel序列号或字符串）
@@ -328,6 +329,7 @@ export default function SmartPerformanceDashboard() {
             });
             
             setStaffConfig(savedStaffConfig);
+            console.log('[checkCloudAndLoad] 设置 staffConfig:', savedStaffConfig);
             
             // 设置配置日期为第一个有数据的日期
             if (dates.length > 0) {
@@ -410,6 +412,7 @@ export default function SmartPerformanceDashboard() {
         
         // 先尝试从云端加载班次配置
         const cloudConfig = await loadShiftConfigCloud();
+        console.log('[loadFromCloud] 云端班次配置:', cloudConfig.data);
         if (cloudConfig.data) {
           Object.entries(cloudConfig.data).forEach(([date, config]) => {
             defaultConfig[date] = config;
@@ -423,6 +426,7 @@ export default function SmartPerformanceDashboard() {
           }
         });
         
+        console.log('[loadFromCloud] 最终 staffConfig:', defaultConfig);
         setStaffConfig(defaultConfig);
         
         // 设置配置日期为第一个有数据的日期
