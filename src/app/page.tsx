@@ -7,17 +7,21 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line
 } from 'recharts';
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
-  FileUp, Trash2, Users, TrendingUp, DollarSign, Package, Truck, ArrowUp, ArrowDown
+  FileUp, Trash2, Users, TrendingUp, DollarSign, Package, Truck, ArrowUp, ArrowDown,
+  Cloud, CloudOff, RefreshCw, Save, Loader2
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { 
+  saveLogisticsData, loadLogisticsData, saveShiftConfig, loadShiftConfig, clearLogisticsData,
+  type LogisticsData, type ShiftConfig 
+} from '@/lib/supabase-client';
 
 // ============ 类型定义 ============
 interface UploadedData {
@@ -69,11 +73,35 @@ const COLORS = {
   loop: '#f59e0b'
 };
 
-const COLORS_ARRAY = [COLORS.unload, COLORS.package, COLORS.loop];
-
 // ============ 常量 ============
 const PACKAGE_UNIT_PRICE = 0.06859;
 const LOOP_UNIT_PRICE = 0.276355;
+
+// ============ 示例数据（默认展示） ============
+const EXAMPLE_DATA: UploadedData[] = [
+  { date: '2026-04-01', timeSlot: '0000-0100', shift: '夜班', freq: '进口', unloadCount: 16991, loopCount: 1608, packageCount: 6568, manageCount: 2, unloadStaff: 18, packageStaff: 22, loopStaff: 28, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0100-0200', shift: '夜班', freq: '进口', unloadCount: 12453, loopCount: 1245, packageCount: 4321, manageCount: 2, unloadStaff: 15, packageStaff: 18, loopStaff: 24, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0200-0300', shift: '夜班', freq: '进口', unloadCount: 9876, loopCount: 987, packageCount: 3456, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0700-0800', shift: '白班', freq: '进口', unloadCount: 1064, loopCount: 1528, packageCount: 246, manageCount: 4, unloadStaff: 5, packageStaff: 3, loopStaff: 6, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0800-0900', shift: '白班', freq: '进口', unloadCount: 5592, loopCount: 3243, packageCount: 4179, manageCount: 4, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0900-1000', shift: '白班', freq: '进口', unloadCount: 4321, loopCount: 2567, packageCount: 3210, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1000-1100', shift: '白班', freq: '进口', unloadCount: 3654, loopCount: 1987, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1100-1200', shift: '白班', freq: '进口', unloadCount: 2987, loopCount: 1654, packageCount: 2109, manageCount: 4, unloadStaff: 5, packageStaff: 6, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1200-1300', shift: '白班', freq: '进口', unloadCount: 3456, loopCount: 1876, packageCount: 2543, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1300-1400', shift: '白班', freq: '进口', unloadCount: 4123, loopCount: 2234, packageCount: 3098, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1400-1500', shift: '白班', freq: '进口', unloadCount: 3876, loopCount: 2098, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1500-1600', shift: '白班', freq: '进口', unloadCount: 3543, loopCount: 1876, packageCount: 2654, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1800-1900', shift: '夜班', freq: '进口', unloadCount: 5432, loopCount: 2876, packageCount: 3987, manageCount: 2, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1900-2000', shift: '夜班', freq: '进口', unloadCount: 7654, loopCount: 3876, packageCount: 5432, manageCount: 2, unloadStaff: 10, packageStaff: 12, loopStaff: 15, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '2000-2100', shift: '夜班', freq: '进口', unloadCount: 9876, loopCount: 4654, packageCount: 6876, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 18, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '2100-2200', shift: '夜班', freq: '进口', unloadCount: 11234, loopCount: 5432, packageCount: 7890, manageCount: 2, unloadStaff: 14, packageStaff: 18, loopStaff: 22, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0000-0100', shift: '夜班', freq: '进口', unloadCount: 14567, loopCount: 1543, packageCount: 5987, manageCount: 2, unloadStaff: 16, packageStaff: 20, loopStaff: 25, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0800-0900', shift: '白班', freq: '进口', unloadCount: 6234, loopCount: 3543, packageCount: 4654, manageCount: 4, unloadStaff: 9, packageStaff: 11, loopStaff: 14, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0900-1000', shift: '白班', freq: '进口', unloadCount: 4876, loopCount: 2765, packageCount: 3543, manageCount: 4, unloadStaff: 7, packageStaff: 9, loopStaff: 11, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '1000-1100', shift: '白班', freq: '进口', unloadCount: 4123, loopCount: 2234, packageCount: 2987, manageCount: 4, unloadStaff: 6, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '1900-2000', shift: '夜班', freq: '进口', unloadCount: 8234, loopCount: 4123, packageCount: 5876, manageCount: 2, unloadStaff: 11, packageStaff: 13, loopStaff: 16, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '2000-2100', shift: '夜班', freq: '进口', unloadCount: 10654, loopCount: 5098, packageCount: 7432, manageCount: 2, unloadStaff: 13, packageStaff: 16, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+];
 
 // ============ 计算公式 ============
 function calcManageSalary(manageCount: number): number {
@@ -225,6 +253,164 @@ export default function SmartPerformanceDashboard() {
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [staffConfig, setStaffConfig] = useState<StaffConfig>({ white: 70, night: 95 });
+  const [isCloudConnected, setIsCloudConnected] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasCloudData, setHasCloudData] = useState(false);
+  
+  // 检查云端连接
+  useEffect(() => {
+    const checkCloudConnection = async () => {
+      try {
+        const { data: configData } = await loadShiftConfig();
+        setIsCloudConnected(true);
+        setHasCloudData(configData.length > 0);
+      } catch {
+        setIsCloudConnected(false);
+      }
+    };
+    checkCloudConnection();
+  }, []);
+  
+  // 从云端加载数据
+  const loadFromCloud = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await loadLogisticsData();
+      if (error) {
+        setNotification({ type: 'error', message: `加载失败: ${error}` });
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        const parsed: UploadedData[] = data.map(row => ({
+          date: row.date,
+          timeSlot: row.time_slot,
+          shift: row.shift_type,
+          freq: row.frequency,
+          unloadCount: row.unload_count,
+          loopCount: row.loop_count,
+          packageCount: row.package_count,
+          manageCount: row.shift_type === '夜班' ? 2 : 4,
+          unloadStaff: 0, packageStaff: 0, loopStaff: 0,
+          fileStaff: 0, inspectStaff: 0, serviceStaff: 0, receiveStaff: 0
+        }));
+        setUploadedData(parsed);
+        setHasCloudData(true);
+        setNotification({ type: 'success', message: `成功加载 ${parsed.length} 条云端数据` });
+      } else {
+        setNotification({ type: 'success', message: '云端暂无数据' });
+      }
+    } catch {
+      setNotification({ type: 'error', message: '加载失败' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 保存到云端
+  const saveToCloud = async () => {
+    if (calculatedData.length === 0) {
+      setNotification({ type: 'error', message: '暂无数据可保存' });
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // 保存业务数据
+      const logisticsRecords: Partial<LogisticsData>[] = calculatedData.map(d => ({
+        date: d.date,
+        time_slot: d.timeSlot,
+        shift_type: d.shift,
+        frequency: d.freq,
+        unload_count: d.unloadCount,
+        unload_price: PACKAGE_UNIT_PRICE.toString(),
+        unload_profit: d.unloadProfit.toString(),
+        unload_loss: Math.max(0, -d.unloadProfit).toString(),
+        package_count: d.packageCount,
+        package_price: PACKAGE_UNIT_PRICE.toString(),
+        package_profit: d.packageProfit.toString(),
+        package_loss: Math.max(0, -d.packageProfit).toString(),
+        loop_count: d.loopCount,
+        loop_price: LOOP_UNIT_PRICE.toString(),
+        loop_profit: d.loopProfit.toString(),
+        loop_loss: Math.max(0, -d.loopProfit).toString(),
+        other_cost: d.otherCost.toString(),
+        sender_count: 0,
+        person_count: d.unloadStaff + d.packageStaff + d.loopStaff,
+        receiver_count: d.receiveStaff,
+        total_profit: d.totalProfit.toString()
+      }));
+      
+      const saveResult = await saveLogisticsData(logisticsRecords);
+      if (!saveResult.success) {
+        throw new Error(saveResult.error);
+      }
+      
+      // 保存班次配置
+      const dates = [...new Set(calculatedData.map(d => d.date))];
+      for (const date of dates) {
+        const dayData = calculatedData.filter(d => d.date === date);
+        const hasWhite = dayData.some(d => d.shift === '白班');
+        const hasNight = dayData.some(d => d.shift === '夜班');
+        
+        if (hasWhite) {
+          const whiteData = dayData.filter(d => d.shift === '白班');
+          const whiteConfig: ShiftConfig = {
+            date,
+            shift_type: '白班',
+            unload_count: whiteData.reduce((s, d) => s + d.unloadStaff, 0),
+            package_count: whiteData.reduce((s, d) => s + d.packageStaff, 0),
+            loop_count: whiteData.reduce((s, d) => s + d.loopStaff, 0),
+            sender_count: whiteData.reduce((s, d) => s + d.fileStaff, 0),
+            receiver_count: whiteData.reduce((s, d) => s + d.receiveStaff, 0)
+          };
+          await saveShiftConfig(whiteConfig);
+        }
+        
+        if (hasNight) {
+          const nightData = dayData.filter(d => d.shift === '夜班');
+          const nightConfig: ShiftConfig = {
+            date,
+            shift_type: '夜班',
+            unload_count: nightData.reduce((s, d) => s + d.unloadStaff, 0),
+            package_count: nightData.reduce((s, d) => s + d.packageStaff, 0),
+            loop_count: nightData.reduce((s, d) => s + d.loopStaff, 0),
+            sender_count: nightData.reduce((s, d) => s + d.fileStaff, 0),
+            receiver_count: nightData.reduce((s, d) => s + d.receiveStaff, 0)
+          };
+          await saveShiftConfig(nightConfig);
+        }
+      }
+      
+      // 更新班次人数配置
+      const latestDate = dates.sort()[dates.length - 1];
+      await saveShiftConfig({
+        date: latestDate,
+        shift_type: '配置',
+        unload_count: staffConfig.white,
+        package_count: staffConfig.night,
+        loop_count: 0,
+        sender_count: 0,
+        receiver_count: 0
+      });
+      
+      setHasCloudData(true);
+      setNotification({ type: 'success', message: '数据已保存到云端' });
+    } catch (err) {
+      console.error(err);
+      setNotification({ type: 'error', message: '保存失败' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  // 加载示例数据
+  const loadExampleData = () => {
+    setUploadedData(EXAMPLE_DATA);
+    setSelectedDate('all');
+    setNotification({ type: 'success', message: `已加载示例数据 ${EXAMPLE_DATA.length} 条` });
+  };
   
   // 计算数据
   useEffect(() => {
@@ -420,7 +606,21 @@ export default function SmartPerformanceDashboard() {
   
   const clearData = () => {
     setUploadedData([]); setCalculatedData([]); setSelectedDate('all'); setSelectedShift('all');
+    setHasCloudData(false);
     setNotification({ type: 'success', message: '数据已清除' });
+  };
+  
+  const clearCloudData = async () => {
+    if (!confirm('确定要清除云端数据吗？')) return;
+    const result = await clearLogisticsData();
+    if (result.success) {
+      setHasCloudData(false);
+      setUploadedData([]);
+      setCalculatedData([]);
+      setNotification({ type: 'success', message: '云端数据已清除' });
+    } else {
+      setNotification({ type: 'error', message: '清除失败' });
+    }
   };
   
   useEffect(() => {
@@ -453,13 +653,34 @@ export default function SmartPerformanceDashboard() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {/* 云端状态指示 */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-white/10 rounded-lg">
+                {isCloudConnected ? (
+                  <Cloud className="w-5 h-5 text-emerald-400" />
+                ) : (
+                  <CloudOff className="w-5 h-5 text-slate-400" />
+                )}
+                <span className="text-sm">{isCloudConnected ? '已连接' : '离线'}</span>
+              </div>
+              
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={loadExampleData}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />示例数据
+              </Button>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={loadFromCloud} disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                云端加载
+              </Button>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={saveToCloud} disabled={isSaving || calculatedData.length === 0}>
+                {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                保存云端
+              </Button>
               <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={downloadTemplate}>
                 <Download className="w-4 h-4 mr-2" />模板下载
               </Button>
               <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={exportData} disabled={calculatedData.length === 0}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" />导出报表
               </Button>
-              <Button variant="destructive" className="bg-red-500/80 hover:bg-red-500" onClick={clearData} disabled={uploadedData.length === 0}>
+              <Button variant="destructive" className="bg-red-500/80 hover:bg-red-500" onClick={clearData} disabled={uploadedData.length === 0 && !hasCloudData}>
                 <Trash2 className="w-4 h-4 mr-2" />清空数据
               </Button>
             </div>
@@ -540,73 +761,81 @@ export default function SmartPerformanceDashboard() {
         
         {/* 统计卡片 */}
         {uploadedData.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <Truck className="w-8 h-8 opacity-80" />
-                  <div>
-                    <p className="text-blue-100 text-sm">卸车总量</p>
-                    <p className="text-2xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+          <div className="space-y-4">
+            {hasCloudData && (
+              <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200">
+                <Cloud className="w-4 h-4" />
+                <span>数据已保存到云端</span>
+              </div>
+            )}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Truck className="w-8 h-8 opacity-80" />
+                    <div>
+                      <p className="text-blue-100 text-sm">卸车总量</p>
+                      <p className="text-2xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <Package className="w-8 h-8 opacity-80" />
-                  <div>
-                    <p className="text-emerald-100 text-sm">集包总量</p>
-                    <p className="text-2xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Package className="w-8 h-8 opacity-80" />
+                    <div>
+                      <p className="text-emerald-100 text-sm">集包总量</p>
+                      <p className="text-2xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <TrendingUp className="w-8 h-8 opacity-80" />
-                  <div>
-                    <p className="text-amber-100 text-sm">环线总量</p>
-                    <p className="text-2xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <TrendingUp className="w-8 h-8 opacity-80" />
+                    <div>
+                      <p className="text-amber-100 text-sm">环线总量</p>
+                      <p className="text-2xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <DollarSign className="w-8 h-8 opacity-80" />
-                  <div>
-                    <p className="text-teal-100 text-sm">总收入</p>
-                    <p className="text-2xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <DollarSign className="w-8 h-8 opacity-80" />
+                    <div>
+                      <p className="text-teal-100 text-sm">总收入</p>
+                      <p className="text-2xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <DollarSign className="w-8 h-8 opacity-80" />
-                  <div>
-                    <p className="text-rose-100 text-sm">总薪资</p>
-                    <p className="text-2xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <DollarSign className="w-8 h-8 opacity-80" />
+                    <div>
+                      <p className="text-rose-100 text-sm">总薪资</p>
+                      <p className="text-2xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={`shadow-lg ${stats.totalProfit >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-br from-red-500 to-rose-500 text-white'}`}>
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  {stats.totalProfit >= 0 ? <ArrowUp className="w-8 h-8 opacity-80" /> : <ArrowDown className="w-8 h-8 opacity-80" />}
-                  <div>
-                    <p className="text-white/80 text-sm">总利润</p>
-                    <p className="text-2xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className={`shadow-lg ${stats.totalProfit >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-br from-red-500 to-rose-500 text-white'}`}>
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    {stats.totalProfit >= 0 ? <ArrowUp className="w-8 h-8 opacity-80" /> : <ArrowDown className="w-8 h-8 opacity-80" />}
+                    <div>
+                      <p className="text-white/80 text-sm">总利润</p>
+                      <p className="text-2xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
         
