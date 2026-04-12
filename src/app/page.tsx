@@ -359,6 +359,7 @@ export default function SmartPerformanceDashboard() {
       { 日期: '2026-04-01', 时段: '0800-0900', 卸车量: 8000, 集包量: 5000, 环线量: 3000 },
       { 日期: '2026-04-01', 时段: '0900-1000', 卸车量: 6000, 集包量: 4000, 环线量: 2500 },
     ];
+    const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '业务数据');
     XLSX.writeFile(wb, '业务数据模板.xlsx');
