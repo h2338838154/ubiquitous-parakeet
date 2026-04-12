@@ -458,6 +458,9 @@ export default function SmartPerformanceDashboard() {
         '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
       
+      // 先清除云端旧数据，再保存新数据（确保数据一致）
+      await clearLogisticsData();
+      
       const saveResult = await saveLogisticsData(logisticsRecords);
       if (!saveResult.success) {
         throw new Error(saveResult.error);
@@ -669,9 +672,33 @@ export default function SmartPerformanceDashboard() {
         
         if (parsed.length === 0) { setNotification({ type: 'error', message: '未找到有效数据' }); return; }
         
-        setUploadedData(parsed);
+        // 合并数据：同一日期的数据会被新数据覆盖
+        const uploadDates = [...new Set(parsed.map(d => d.date))];
+        const existingData = uploadedData.filter(d => !uploadDates.includes(d.date));
+        const newData = [...existingData, ...parsed];
+        
+        setUploadedData(newData);
         setSelectedDate('all');
-        setNotification({ type: 'success', message: `成功导入 ${parsed.length} 条数据` });
+        
+        // 更新班次配置（为新增的日期添加默认配置）
+        const newDates = uploadDates.filter(d => !staffConfig[d]);
+        if (newDates.length > 0) {
+          setStaffConfig(prev => {
+            const updated = { ...prev };
+            newDates.forEach(date => {
+              updated[date] = { white: 70, middle: 0, night: 95 };
+            });
+            return updated;
+          });
+        }
+        
+        // 设置配置日期为第一个上传的日期
+        if (uploadDates.length > 0) {
+          setConfigDate(uploadDates[0]);
+        }
+        
+        const isOverwrite = existingData.length > 0 && existingData.length < uploadedData.length;
+        setNotification({ type: 'success', message: isOverwrite ? `覆盖导入 ${parsed.length} 条数据` : `成功导入 ${parsed.length} 条数据` });
       } catch (err) {
         console.error(err);
         setNotification({ type: 'error', message: '解析失败' });
@@ -1071,7 +1098,7 @@ export default function SmartPerformanceDashboard() {
           </Card>
         )}
         
-        {/* 筛选 */}
+        {/* 筛选与数据管理 */}
         {uploadedData.length > 0 && (
           <Card className="bg-white shadow-lg border-0">
             <CardContent className="p-3">
@@ -1097,6 +1124,20 @@ export default function SmartPerformanceDashboard() {
                   </SelectContent>
                 </Select>
                 <Badge variant="outline" className="text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
+                
+                {/* 清除云端数据按钮 */}
+                {isCloudConnected && hasCloudData && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="ml-auto border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={clearCloudData}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    <span className="hidden sm:inline">清除云端数据</span>
+                    <span className="sm:hidden">清云端</span>
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
