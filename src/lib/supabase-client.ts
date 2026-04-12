@@ -20,17 +20,20 @@ export function dateToExcelSerial(dateStr: string): number {
   return Math.floor((date.getTime() - excelEpoch.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// 日期转换函数：Excel序列号转ISO日期
+// 日期转换函数：Excel序列号转ISO日期（考虑时区偏移）
 export function excelSerialToDate(serial: number): string {
-  const excelEpoch = new Date(1899, 11, 30);
+  const excelEpoch = new Date(Date.UTC(1899, 11, 30));
   const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
-  return date.toISOString().split('T')[0];
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // 适配用户现有表结构
 export interface LogisticsDataRow {
   sync_id: string;
-  日期: string;
+  日期: number | string;  // 可能是Excel序列号或字符串
   时段: string;
   班次: string;
   频次: string;
