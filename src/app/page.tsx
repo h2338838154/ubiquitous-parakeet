@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
-  FileUp, Trash2, Users, Calculator, Info
+  FileUp, Trash2, Users, Info
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -23,180 +23,176 @@ import * as XLSX from 'xlsx';
 interface UploadedData {
   date: string;
   timeSlot: string;
-  manageCount: number;   // 管理人数
+  shift: string;  // 白班/中班/夜班
   unloadCount: number;  // 卸车量
-  loopCount: number;     // 环线量
   packageCount: number;  // 集包量
-  unloadStaff: number;   // 卸车人数
-  packageStaff: number;  // 集包人数
-  loopStaff: number;     // 环线人数
-  expressStaff: number;  // 特快人数
-  fileStaff: number;     // 文件人数
-  inspectStaff: number;  // 发验人数
-  serviceStaff: number;  // 客服人数
-  receiveStaff: number;  // 接发员人数
+  loopCount: number;     // 环线量
 }
 
 interface CalculatedData extends UploadedData {
-  shift: string;
-  manageSalary: number;      // 管理薪资
-  unloadSalary: number;       // 卸车薪资
-  unloadProfit: number;       // 卸车盈亏
-  packageRevenue: number;     // 集包收入
-  packageSalary: number;      // 集包薪资
-  packageProfit: number;       // 集包盈亏
-  loopRevenue: number;         // 环线收入
-  loopSalary: number;          // 环线薪资
-  loopProfit: number;          // 环线盈亏
-  otherCost: number;           // 其他成本
-  totalProfit: number;         // 总盈亏
-  totalRevenue: number;         // 总收入
-  totalSalary: number;          // 总薪资
+  // 智能分配的人数
+  unloadStaff: number;   // 卸车人数
+  packageStaff: number;  // 集包人数
+  loopStaff: number;     // 环线人数
+  
+  // 各环节薪资
+  unloadSalary: number;
+  packageSalary: number;
+  loopSalary: number;
+  
+  // 各环节收入
+  packageRevenue: number;
+  loopRevenue: number;
+  
+  // 各环节盈亏
+  unloadProfit: number;
+  packageProfit: number;
+  loopProfit: number;
+  
+  // 其他成本
+  otherCost: number;
+  
+  // 管理薪资
+  manageSalary: number;
+  
+  // 总计
+  totalProfit: number;
+  totalRevenue: number;
+  totalSalary: number;
 }
 
-// ============ 常量配置 ============
-const TIME_RANGES = [
-  '0000-0100', '0100-0200', '0200-0300', '0300-0400', '0400-0500', '0500-0600', '0600-0700',
-  '0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300', '1300-1400',
-  '1400-1500', '1500-1600', '1600-1700', '1700-1800', '1800-1900', '1900-2000', '2000-2100',
-  '2100-2200', '2200-2300', '2300-0000'
-];
-
-const WHITE_RANGES = ['0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300', '1300-1400', '1400-1500', '1500-1600', '1600-1700', '1700-1800'];
+interface StaffConfig {
+  white: number;   // 白班人数
+  middle: number;  // 中班人数
+  night: number;   // 夜班人数
+}
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-// ============ 薪资基准配置 ============
-const UNLOAD_PRICE_NIGHT = 14.62;  // 夜班卸车单价
-const UNLOAD_PRICE_WHITE = 14.54;  // 白班卸车单价
-const PACKAGE_PRICE = 14.62;       // 集包单价
-const LOOP_PRICE = 14.62;          // 环线单价
+// ============ 常量 ============
+const PACKAGE_UNIT_PRICE = 0.0722 * 0.95;  // 集包单价 0.0722 * 0.95
+const LOOP_UNIT_PRICE = 0.2909 * 0.95;     // 环线单价 0.2909 * 0.95
+const UNLOAD_PRICE = 14.62;                // 卸车单价
+const OTHER_UNLOAD_PRICE = 14.62;          // 其他成本-卸车
+const OTHER_PACKAGE_PRICE = 14.54;         // 其他成本-集包
 
 // ============ 计算公式 ============
 
 /**
  * 管理薪资公式
- * IF(管理人数=2, 21.79+16000/30/24, 25.75+12000/30/24*2+30000/30/24)
+ * 白班(中班): 25.75 + 12000/30/24*2 + 30000/30/24
+ * 夜班: 21.79 + 16000/30/24
  */
-function calcManageSalary(manageCount: number): number {
-  if (manageCount === 2) {
-    // 夜班管理
+function calcManageSalary(isNight: boolean): number {
+  if (isNight) {
     return 21.79 + 16000 / 30 / 24;
   } else {
-    // 白班管理
     return 25.75 + 12000 / 30 / 24 * 2 + 30000 / 30 / 24;
   }
 }
 
 /**
- * 卸车薪资公式
- * 卸车人数 * 14.62 + 21
+ * 卸车薪资: 人数 * 14.62 + 21
  */
-function calcUnloadSalary(staffCount: number, isWhite: boolean): number {
-  const price = isWhite ? UNLOAD_PRICE_WHITE : UNLOAD_PRICE_NIGHT;
-  return staffCount * price + 21;
+function calcUnloadSalary(staffCount: number): number {
+  return staffCount * UNLOAD_PRICE + 21;
 }
 
 /**
- * 集包薪资公式
- * (集包人数-13) * 14.62 + 13 * 18 + 21
+ * 集包薪资: (人数-13)*14.62 + 13*18 + 21
  */
 function calcPackageSalary(staffCount: number): number {
   if (staffCount <= 13) {
     return staffCount * 18 + 21;
   }
-  return (staffCount - 13) * PACKAGE_PRICE + 13 * 18 + 21;
+  return (staffCount - 13) * 14.62 + 13 * 18 + 21;
 }
 
 /**
- * 环线薪资公式
- * (环线人数-13) * 14.62 + 13 * 18 + 42
+ * 环线薪资: (人数-13)*14.62 + 13*18 + 42
  */
 function calcLoopSalary(staffCount: number): number {
   if (staffCount <= 13) {
     return staffCount * 18 + 42;
   }
-  return (staffCount - 13) * LOOP_PRICE + 13 * 18 + 42;
+  return (staffCount - 13) * 14.62 + 13 * 18 + 42;
 }
 
 /**
- * 集包收入公式
- * 集包人数 * 集包量 * 0.94
+ * 其他成本
+ * (卸车-1)*14.62 + 9000/26/13 + (集包-1)*14.54 + 7500/26/11 + 环线*(4200/26/9) + 特快*(4000/26/11) + 2000/24
+ * 注：这里简化处理，假设特快=1
  */
-function calcPackageRevenue(staffCount: number, packageCount: number): number {
-  return staffCount * packageCount * 0.94;
-}
-
-/**
- * 环线收入公式
- * 环线人数 * 环线量 * 0.94
- */
-function calcLoopRevenue(staffCount: number, loopCount: number): number {
-  return staffCount * loopCount * 0.94;
-}
-
-/**
- * 其他成本公式
- * (卸车人数-1) * 14.62 + 9000/26/13 + (集包人数-1) * 14.54 + 7500/26/11 + 环线人数 * (4200/26/9) + 特快人数 * (4000/26/11) + 2000/24
- */
-function calcOtherCost(data: UploadedData): number {
-  const unload = Math.max(0, data.unloadStaff - 1) * UNLOAD_PRICE_NIGHT + 9000 / 26 / 13;
-  const packageCost = Math.max(0, data.packageStaff - 1) * UNLOAD_PRICE_WHITE + 7500 / 26 / 11;
-  const loop = data.loopStaff * (4200 / 26 / 9);
-  const express = data.expressStaff * (4000 / 26 / 11);
+function calcOtherCost(unloadStaff: number, packageStaff: number, loopStaff: number): number {
+  const unload = Math.max(0, unloadStaff - 1) * OTHER_UNLOAD_PRICE + 9000 / 26 / 13;
+  const pkg = Math.max(0, packageStaff - 1) * OTHER_PACKAGE_PRICE + 7500 / 26 / 11;
+  const loop = loopStaff * (4200 / 26 / 9);
+  const express = 1 * (4000 / 26 / 11);
   const fixed = 2000 / 24;
-  return unload + packageCost + loop + express + fixed;
+  return unload + pkg + loop + express + fixed;
 }
 
+// ============ 智能分配算法 ============
 /**
- * 计算单行数据
+ * 根据班次总人数和业务量智能分配各环节人数
  */
-function calculateRow(data: UploadedData): CalculatedData {
-  const isWhite = WHITE_RANGES.includes(data.timeSlot);
+function smartAllocate(totalStaff: number, unloadCount: number, packageCount: number, loopCount: number, isWhite: boolean): { unload: number; package: number; loop: number } {
+  const total = unloadCount + packageCount + loopCount;
+  if (total === 0) {
+    return { unload: 0, package: 0, loop: 0 };
+  }
   
-  // 各环节薪资
-  const unloadSalary = calcUnloadSalary(data.unloadStaff, !isWhite); // 夜班用14.62
-  const packageSalary = calcPackageSalary(data.packageStaff);
-  const loopSalary = calcLoopSalary(data.loopStaff);
+  // 基础比例：卸车25%、集包35%、环线40%
+  const baseRatio = { unload: 0.25, package: 0.35, loop: 0.40 };
   
-  // 各环节收入
-  const packageRevenue = calcPackageRevenue(data.packageStaff, data.packageCount);
-  const loopRevenue = calcLoopRevenue(data.loopStaff, data.loopCount);
+  // 高峰时段加权（08:00-14:00）
+  const hour = parseInt(currentTimeSlot.split('-')[0]);
+  const isPeak = hour >= 8 && hour <= 14;
+  const peakBoost = isPeak ? 1.2 : 1.0;
   
-  // 卸车盈亏（卸车没有收入）
-  const unloadProfit = 0 - unloadSalary;
-  
-  // 其他盈亏
-  const packageProfit = packageRevenue - packageSalary;
-  const loopProfit = loopRevenue - loopSalary;
-  
-  // 管理薪资
-  const manageSalary = calcManageSalary(data.manageCount);
-  
-  // 其他成本
-  const otherCost = calcOtherCost(data);
-  
-  // 总盈亏 = 卸车盈亏 + 集包盈亏 + 环线盈亏 - 管理薪资 - 其他成本
-  const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
-  
-  return {
-    ...data,
-    shift: isWhite ? '白班' : '夜班',
-    manageSalary,
-    unloadSalary,
-    unloadProfit,
-    packageRevenue,
-    packageSalary,
-    packageProfit,
-    loopRevenue,
-    loopSalary,
-    loopProfit,
-    otherCost,
-    totalProfit,
-    totalRevenue: packageRevenue + loopRevenue,
-    totalSalary: unloadSalary + packageSalary + loopSalary + manageSalary
+  // 计算加权业务量
+  const weighted = {
+    unload: unloadCount * baseRatio.unload * peakBoost,
+    package: packageCount * baseRatio.package * peakBoost,
+    loop: loopCount * baseRatio.loop * peakBoost
   };
+  
+  // 归一化
+  const totalWeighted = weighted.unload + weighted.package + weighted.loop;
+  if (totalWeighted === 0) {
+    return { unload: 0, package: 0, loop: 0 };
+  }
+  
+  // 计算分配人数
+  let unload = Math.round(totalStaff * (weighted.unload / totalWeighted));
+  let package_ = Math.round(totalStaff * (weighted.package / totalWeighted));
+  let loop = Math.round(totalStaff * (weighted.loop / totalWeighted));
+  
+  // 确保总人数不变
+  const diff = totalStaff - unload - package_ - loop;
+  if (diff !== 0) {
+    // 调整最大的那个
+    if (loop >= package_ && loop >= unload) {
+      loop += diff;
+    } else if (package_ >= unload) {
+      package_ += diff;
+    } else {
+      unload += diff;
+    }
+  }
+  
+  // 白班环线复用：卸车可复用至环线
+  if (isWhite && loop > 0) {
+    const reuse = Math.min(Math.floor(unload * 0.3), loop);
+    loop += reuse;
+    unload -= reuse;
+  }
+  
+  return { unload: Math.max(0, unload), package: Math.max(0, package_), loop: Math.max(0, loop) };
 }
+
+// 当前时段（用于判断是否高峰）
+let currentTimeSlot = '0800-0900';
 
 // ============ 日期解析 ============
 function parseDate(value: unknown): string {
@@ -218,6 +214,16 @@ function parseDate(value: unknown): string {
   return String(value);
 }
 
+/**
+ * 判断班次
+ */
+function getShift(timeSlot: string): string {
+  const hour = parseInt(timeSlot.split('-')[0]);
+  if (hour >= 7 && hour < 18) return '白班';
+  if (hour >= 18 || hour < 7) return '夜班';
+  return '夜班';
+}
+
 // ============ 主组件 ============
 export default function SmartPerformanceDashboard() {
   const [uploadedData, setUploadedData] = useState<UploadedData[]>([]);
@@ -228,22 +234,77 @@ export default function SmartPerformanceDashboard() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // 班次人数配置
-  const [whiteStaffCount, setWhiteStaffCount] = useState(70);
-  const [nightStaffCount, setNightStaffCount] = useState(95);
+  const [staffConfig, setStaffConfig] = useState<StaffConfig>({
+    white: 70,
+    middle: 0,
+    night: 95
+  });
   
-  // 计算数据
+  // 计算数据（当人数配置或上传数据变化时重新计算）
   useEffect(() => {
     if (uploadedData.length > 0) {
-      const calculated = uploadedData.map(row => calculateRow(row));
+      const calculated = uploadedData.map(row => {
+        currentTimeSlot = row.timeSlot;
+        const isWhite = row.shift === '白班';
+        const totalStaff = isWhite ? staffConfig.white : staffConfig.night;
+        
+        // 智能分配
+        const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite);
+        
+        // 计算薪资
+        const unloadSalary = calcUnloadSalary(allocation.unload);
+        const packageSalary = calcPackageSalary(allocation.package);
+        const loopSalary = calcLoopSalary(allocation.loop);
+        
+        // 计算收入
+        const packageRevenue = row.packageCount * PACKAGE_UNIT_PRICE;
+        const loopRevenue = row.loopCount * LOOP_UNIT_PRICE;
+        
+        // 计算盈亏
+        const unloadProfit = 0 - unloadSalary;
+        const packageProfit = packageRevenue - packageSalary;
+        const loopProfit = loopRevenue - loopSalary;
+        
+        // 其他成本和管理薪资
+        const otherCost = calcOtherCost(allocation.unload, allocation.package, allocation.loop);
+        const manageSalary = calcManageSalary(!isWhite);
+        
+        // 总盈亏
+        const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
+        
+        return {
+          ...row,
+          unloadStaff: allocation.unload,
+          packageStaff: allocation.package,
+          loopStaff: allocation.loop,
+          unloadSalary,
+          packageSalary,
+          loopSalary,
+          packageRevenue,
+          loopRevenue,
+          unloadProfit,
+          packageProfit,
+          loopProfit,
+          otherCost,
+          manageSalary,
+          totalProfit,
+          totalRevenue: packageRevenue + loopRevenue,
+          totalSalary: unloadSalary + packageSalary + loopSalary + manageSalary
+        };
+      });
       setCalculatedData(calculated);
     }
-  }, [uploadedData]);
+  }, [uploadedData, staffConfig]);
   
   // 筛选
   const filteredData = useMemo(() => {
     let result = [...calculatedData];
-    if (selectedDate !== 'all') result = result.filter(d => d.date === selectedDate);
-    if (selectedShift !== 'all') result = result.filter(d => d.shift === selectedShift);
+    if (selectedDate !== 'all') {
+      result = result.filter(d => d.date === selectedDate);
+    }
+    if (selectedShift !== 'all') {
+      result = result.filter(d => d.shift === selectedShift);
+    }
     return result;
   }, [calculatedData, selectedDate, selectedShift]);
   
@@ -285,10 +346,13 @@ export default function SmartPerformanceDashboard() {
   
   const profitData = useMemo(() => filteredData.map(d => ({
     name: d.timeSlot,
-    收入: Math.round(d.totalRevenue), 薪资: Math.round(d.totalSalary), 利润: Math.round(d.totalProfit)
+    集包收入: Math.round(d.packageRevenue),
+    环线收入: Math.round(d.loopRevenue),
+    卸车薪资: Math.round(d.unloadSalary),
+    利润: Math.round(d.totalProfit)
   })), [filteredData]);
   
-  // Excel上传（根据模板列名）
+  // Excel上传
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -301,11 +365,13 @@ export default function SmartPerformanceDashboard() {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
         
-        // 尝试映射列名
-        const sampleRow = json[0] || {};
-        const keys = Object.keys(sampleRow);
+        if (json.length === 0) {
+          setNotification({ type: 'error', message: '文件为空' });
+          return;
+        }
         
-        // 查找列名映射
+        // 查找列名
+        const keys = Object.keys(json[0]);
         const findCol = (patterns: string[]): string | undefined => {
           for (const key of keys) {
             for (const pattern of patterns) {
@@ -316,41 +382,32 @@ export default function SmartPerformanceDashboard() {
         };
         
         const dateCol = findCol(['日期', 'date']);
-        const timeCol = findCol(['时段', 'timeSlot']);
-        const manageCol = findCol(['管理', 'manage']);
-        const unloadCountCol = findCol(['卸车量', '卸车']);
-        const loopCountCol = findCol(['环线量', '环线']);
-        const packageCountCol = findCol(['集包量', '集包']);
-        const unloadStaffCol = findCol(['卸车人数', '卸车人']);
-        const packageStaffCol = findCol(['集包人数', '集包人']);
-        const loopStaffCol = findCol(['环线人数', '环线人']);
-        const expressCol = findCol(['特快']);
-        const fileCol = findCol(['文件']);
-        const inspectCol = findCol(['发验']);
-        const serviceCol = findCol(['客服']);
-        const receiveCol = findCol(['接发员']);
+        const timeCol = findCol(['时段', 'time']);
+        const shiftCol = findCol(['班次', 'shift']);
+        const unloadCol = findCol(['卸车量', '卸车']);
+        const packageCol = findCol(['集包量', '集包']);
+        const loopCol = findCol(['环线量', '环线']);
         
         if (!dateCol || !timeCol) {
-          setNotification({ type: 'error', message: '未找到日期或时段列' });
+          setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' });
           return;
         }
         
-        const parsed: UploadedData[] = json.map(row => ({
-          date: parseDate(row[dateCol]),
-          timeSlot: String(row[timeCol] || '').trim(),
-          manageCount: Number(row[manageCol] || 2),
-          unloadCount: Number(row[unloadCountCol] || 0),
-          loopCount: Number(row[loopCountCol] || 0),
-          packageCount: Number(row[packageCountCol] || 0),
-          unloadStaff: Number(row[unloadStaffCol] || 0),
-          packageStaff: Number(row[packageStaffCol] || 0),
-          loopStaff: Number(row[loopStaffCol] || 0),
-          expressStaff: Number(row[expressCol] || 0),
-          fileStaff: Number(row[fileCol] || 0),
-          inspectStaff: Number(row[inspectCol] || 0),
-          serviceStaff: Number(row[serviceCol] || 0),
-          receiveStaff: Number(row[receiveCol] || 0)
-        })).filter(d => d.date && d.timeSlot);
+        const parsed: UploadedData[] = json.map(row => {
+          const timeSlot = String(row[timeCol] || '').trim();
+          let shift = shiftCol ? String(row[shiftCol] || '') : '';
+          if (!shift) {
+            shift = getShift(timeSlot);
+          }
+          return {
+            date: parseDate(row[dateCol]),
+            timeSlot,
+            shift,
+            unloadCount: Number(row[unloadCol] || 0),
+            packageCount: Number(row[packageCol] || 0),
+            loopCount: Number(row[loopCol] || 0)
+          };
+        }).filter(d => d.date && d.timeSlot);
         
         if (parsed.length === 0) {
           setNotification({ type: 'error', message: '未找到有效数据' });
@@ -374,18 +431,11 @@ export default function SmartPerformanceDashboard() {
   // 下载模板
   const downloadTemplate = () => {
     const template = [
-      { 
-        '日期': '2026-04-01', '时段': '0700-0800', '管理人数': 4, 
-        '卸车量': 5000, '环线量': 2000, '集包量': 3000,
-        '卸车人数': 8, '集包人数': 21, '环线人数': 33,
-        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
-      },
-      { 
-        '日期': '2026-04-01', '时段': '0800-0900', '管理人数': 4, 
-        '卸车量': 8000, '环线量': 3000, '集包量': 5000,
-        '卸车人数': 8, '集包人数': 21, '环线人数': 33,
-        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
-      },
+      { '日期': '2026-04-01', '时段': '0700-0800', '班次': '白班', '卸车量': 5000, '集包量': 3000, '环线量': 2000 },
+      { '日期': '2026-04-01', '时段': '0800-0900', '班次': '白班', '卸车量': 8000, '集包量': 5000, '环线量': 3000 },
+      { '日期': '2026-04-01', '时段': '0900-1000', '班次': '白班', '卸车量': 6000, '集包量': 4000, '环线量': 2500 },
+      { '日期': '2026-04-01', '时段': '1800-1900', '班次': '夜班', '卸车量': 7000, '集包量': 4500, '环线量': 2800 },
+      { '日期': '2026-04-01', '时段': '1900-2000', '班次': '夜班', '卸车量': 9000, '集包量': 6000, '环线量': 3500 },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -396,12 +446,28 @@ export default function SmartPerformanceDashboard() {
   // 导出
   const exportData = () => {
     const rows = filteredData.map(d => ({
-      '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
-      '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
-      '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
-      '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
-      '管理薪资': d.manageSalary.toFixed(2), '其他成本': d.otherCost.toFixed(2),
-      '总收入': d.totalRevenue.toFixed(2), '总薪资': d.totalSalary.toFixed(2), '利润': d.totalProfit.toFixed(2)
+      '日期': d.date,
+      '时段': d.timeSlot,
+      '班次': d.shift,
+      '卸车量': d.unloadCount,
+      '卸车人数': d.unloadStaff,
+      '卸车薪资': d.unloadSalary.toFixed(2),
+      '卸车盈亏': d.unloadProfit.toFixed(2),
+      '集包量': d.packageCount,
+      '集包人数': d.packageStaff,
+      '集包收入': d.packageRevenue.toFixed(2),
+      '集包薪资': d.packageSalary.toFixed(2),
+      '集包盈亏': d.packageProfit.toFixed(2),
+      '环线量': d.loopCount,
+      '环线人数': d.loopStaff,
+      '环线收入': d.loopRevenue.toFixed(2),
+      '环线薪资': d.loopSalary.toFixed(2),
+      '环线盈亏': d.loopProfit.toFixed(2),
+      '管理薪资': d.manageSalary.toFixed(2),
+      '其他成本': d.otherCost.toFixed(2),
+      '总收入': d.totalRevenue.toFixed(2),
+      '总薪资': d.totalSalary.toFixed(2),
+      '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -414,6 +480,8 @@ export default function SmartPerformanceDashboard() {
   const clearData = () => {
     setUploadedData([]);
     setCalculatedData([]);
+    setSelectedDate('all');
+    setSelectedShift('all');
     setNotification({ type: 'success', message: '数据已清除' });
   };
   
@@ -425,6 +493,7 @@ export default function SmartPerformanceDashboard() {
   }, [notification]);
   
   const getColor = (v: number) => v >= 0 ? 'text-emerald-500' : 'text-red-500';
+  const getBgColor = (v: number) => v >= 0 ? 'bg-emerald-500' : 'bg-red-500';
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -443,19 +512,25 @@ export default function SmartPerformanceDashboard() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                 物流绩效分析系统
               </h1>
-              <p className="text-sm text-slate-500 mt-1">基于业务数据的智能盈亏计算</p>
+              <p className="text-sm text-slate-500 mt-1">智能排班 · 自动盈亏计算</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-2" />模板</Button>
-              <Button variant="outline" size="sm" onClick={exportData} disabled={calculatedData.length === 0}><FileSpreadsheet className="w-4 h-4 mr-2" />导出</Button>
-              <Button variant="destructive" size="sm" onClick={clearData} disabled={uploadedData.length === 0}><Trash2 className="w-4 h-4 mr-2" />清除</Button>
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <Download className="w-4 h-4 mr-2" />模板
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportData} disabled={calculatedData.length === 0}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />导出
+              </Button>
+              <Button variant="destructive" size="sm" onClick={clearData} disabled={uploadedData.length === 0}>
+                <Trash2 className="w-4 h-4 mr-2" />清除
+              </Button>
             </div>
           </div>
         </div>
       </header>
       
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* 上传 */}
+        {/* 上传区域 */}
         <Card className="border-2 border-dashed border-blue-300">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row items-center gap-6">
@@ -467,47 +542,47 @@ export default function SmartPerformanceDashboard() {
                 <input type="file" accept=".xlsx,.xls" onChange={handleUpload} className="hidden" />
               </label>
               <div className="text-sm text-slate-600">
-                <p className="font-medium">表头：日期 | 时段 | 管理人数 | 卸车量/人数 | 环线量/人数 | 集包量/人数 | 特快 | 文件 | 发验 | 客服 | 接发员</p>
-                <p className="text-xs mt-1">上传完整的业务数据，系统自动计算盈亏</p>
+                <p className="font-medium">表头：日期 | 时段 | 班次 | 卸车量 | 集包量 | 环线量</p>
+                <p className="text-xs mt-1">上传业务量数据，系统自动智能分配人数并计算盈亏</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        {/* 计算公式说明 */}
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardHeader className="pb-2">
+        {/* 班次人数配置 */}
+        <Card>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Info className="w-5 h-5 text-blue-600" />
-              计算公式说明
+              <Users className="w-5 h-5 text-blue-600" />
+              班次人数配置
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">管理薪资</p>
-                <p className="text-slate-600 mt-1">IF(管理人数=2, 21.79+16000/30/24, 25.75+12000/30/24*2+30000/30/24)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3">
+                <Label className="w-16">白班</Label>
+                <Input
+                  type="number"
+                  value={staffConfig.white}
+                  onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
+                  className="w-28"
+                />
+                <span className="text-sm text-slate-500">人 (07:00-18:00)</span>
               </div>
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">卸车薪资</p>
-                <p className="text-slate-600 mt-1">人数 × 14.62 + 21（卸车无收入）</p>
+              <div className="flex items-center gap-3">
+                <Label className="w-16">夜班</Label>
+                <Input
+                  type="number"
+                  value={staffConfig.night}
+                  onChange={e => setStaffConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
+                  className="w-28"
+                />
+                <span className="text-sm text-slate-500">人 (18:00-07:00)</span>
               </div>
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">集包薪资</p>
-                <p className="text-slate-600 mt-1">(人数-13) × 14.62 + 13 × 18 + 21</p>
-              </div>
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">环线薪资</p>
-                <p className="text-slate-600 mt-1">(人数-13) × 14.62 + 13 × 18 + 42</p>
-              </div>
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">集包/环线收入</p>
-                <p className="text-slate-600 mt-1">人数 × 业务量 × 0.94</p>
-              </div>
-              <div className="p-3 bg-white rounded-lg">
-                <p className="font-medium text-blue-600">其他成本</p>
-                <p className="text-slate-600 mt-1">各环节分摊 + 2000/24</p>
-              </div>
+            </div>
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              <Info className="w-4 h-4 inline mr-1" />
+              智能分配规则：卸车25% | 集包35% | 环线40%，高峰时段(08:00-14:00)自动加权，白班卸车可复用至环线
             </div>
           </CardContent>
         </Card>
@@ -515,13 +590,41 @@ export default function SmartPerformanceDashboard() {
         {/* 统计卡片 */}
         {uploadedData.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white"><CardContent className="p-3"><p className="text-blue-100 text-xs">卸车总量</p><p className="text-xl font-bold">{stats.totalUnload.toLocaleString()}</p></CardContent></Card>
-            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"><CardContent className="p-3"><p className="text-emerald-100 text-xs">集包总量</p><p className="text-xl font-bold">{stats.totalPackage.toLocaleString()}</p></CardContent></Card>
-            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white"><CardContent className="p-3"><p className="text-amber-100 text-xs">环线总量</p><p className="text-xl font-bold">{stats.totalLoop.toLocaleString()}</p></CardContent></Card>
-            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white"><CardContent className="p-3"><p className="text-teal-100 text-xs">总收入</p><p className="text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p></CardContent></Card>
-            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white"><CardContent className="p-3"><p className="text-rose-100 text-xs">总薪资</p><p className="text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <CardContent className="p-3">
+                <p className="text-blue-100 text-xs">卸车总量</p>
+                <p className="text-xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+              <CardContent className="p-3">
+                <p className="text-emerald-100 text-xs">集包总量</p>
+                <p className="text-xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white">
+              <CardContent className="p-3">
+                <p className="text-amber-100 text-xs">环线总量</p>
+                <p className="text-xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white">
+              <CardContent className="p-3">
+                <p className="text-teal-100 text-xs">总收入</p>
+                <p className="text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white">
+              <CardContent className="p-3">
+                <p className="text-rose-100 text-xs">总薪资</p>
+                <p className="text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+              </CardContent>
+            </Card>
             <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} text-white`}>
-              <CardContent className="p-3"><p className="text-white/80 text-xs">总利润</p><p className="text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p></CardContent>
+              <CardContent className="p-3">
+                <p className="text-white/80 text-xs">总利润</p>
+                <p className="text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+              </CardContent>
             </Card>
           </div>
         )}
@@ -530,7 +633,7 @@ export default function SmartPerformanceDashboard() {
         {uploadedData.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">📅 按日汇总</CardTitle>
+              <CardTitle className="text-base">按日汇总</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -549,7 +652,9 @@ export default function SmartPerformanceDashboard() {
                         <TableCell className="font-medium">{d.date}</TableCell>
                         <TableCell className="text-right">¥{Math.round(d.revenue).toLocaleString()}</TableCell>
                         <TableCell className="text-right">¥{Math.round(d.salary).toLocaleString()}</TableCell>
-                        <TableCell className={`text-right font-bold ${getColor(d.profit)}`}>¥{Math.round(d.profit).toLocaleString()}</TableCell>
+                        <TableCell className={`text-right font-bold ${getColor(d.profit)}`}>
+                          ¥{Math.round(d.profit).toLocaleString()}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -559,7 +664,7 @@ export default function SmartPerformanceDashboard() {
           </Card>
         )}
         
-        {/* 日期筛选 */}
+        {/* 筛选 */}
         {uploadedData.length > 0 && (
           <Card>
             <CardContent className="pt-4">
@@ -569,21 +674,27 @@ export default function SmartPerformanceDashboard() {
                   <span className="font-medium">筛选：</span>
                 </div>
                 <Select value={selectedDate} onValueChange={setSelectedDate}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部日期</SelectItem>
-                    {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    {availableDates.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部班次</SelectItem>
                     <SelectItem value="白班">白班</SelectItem>
                     <SelectItem value="夜班">夜班</SelectItem>
                   </SelectContent>
                 </Select>
-                <Badge>{filteredData.length}条</Badge>
+                <Badge variant="outline">{filteredData.length} 条</Badge>
               </div>
             </CardContent>
           </Card>
@@ -591,26 +702,118 @@ export default function SmartPerformanceDashboard() {
         
         {/* 图表 */}
         {uploadedData.length > 0 && (
-          <Tabs defaultValue="profit" className="space-y-4">
+          <Tabs defaultValue="overview" className="space-y-4">
             <TabsList className="grid grid-cols-3 w-full">
               <TabsTrigger value="overview">总览</TabsTrigger>
               <TabsTrigger value="trend">趋势</TabsTrigger>
-              <TabsTrigger value="profit">盈亏</TabsTrigger>
+              <TabsTrigger value="profit">盈亏明细</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card><CardHeader><CardTitle>📊 业务量占比</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(1)}%`}>{pieData.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip formatter={(v: number) => v.toLocaleString()} /><Legend /></PieChart></ResponsiveContainer></div></CardContent></Card>
-                <Card><CardHeader><CardTitle>💰 盈亏分布</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill="#3b82f6" /></BarChart></ResponsiveContainer></div></CardContent></Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>业务量占比</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer>
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={5}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v: number) => v.toLocaleString()} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>收入对比</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer>
+                        <BarChart data={profitData.slice(0, 12)}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={(v: number) => `¥${v}`} />
+                          <Legend />
+                          <Bar dataKey="集包收入" fill="#10b981" />
+                          <Bar dataKey="环线收入" fill="#3b82f6" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
             
             <TabsContent value="trend">
-              <Card><CardHeader><CardTitle>📈 盈亏趋势</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><AreaChart data={profitData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} /><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Area type="monotone" dataKey="利润" stroke="#3b82f6" fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></CardContent></Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>利润趋势</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer>
+                      <AreaChart data={profitData}>
+                        <defs>
+                          <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                        <Legend />
+                        <Area type="monotone" dataKey="利润" stroke="#3b82f6" fill="url(#colorProfit)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
             
             <TabsContent value="profit">
-              <Card><CardHeader><CardTitle>📊 盈亏明细</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill={profitData.some(d => d.利润 < 0) ? '#ef4444' : '#3b82f6'} /></BarChart></ResponsiveContainer></div></CardContent></Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>盈亏明细</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer>
+                      <BarChart data={profitData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                        <Legend />
+                        <Bar dataKey="集包收入" fill="#10b981" />
+                        <Bar dataKey="环线收入" fill="#3b82f6" />
+                        <Bar dataKey="卸车薪资" fill="#f59e0b" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         )}
@@ -620,8 +823,14 @@ export default function SmartPerformanceDashboard() {
           <Card>
             <CardHeader>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="w-5 h-5" />完整数据</CardTitle>
-                <Badge variant="outline">总收入 ¥{Math.round(stats.totalRevenue).toLocaleString()} | 总薪资 ¥{Math.round(stats.totalSalary).toLocaleString()} | 利润 <span className={getColor(stats.totalProfit)}>¥{Math.round(stats.totalProfit).toLocaleString()}</span></Badge>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5" />
+                  完整数据
+                </CardTitle>
+                <Badge variant="outline">
+                  总收入 ¥{Math.round(stats.totalRevenue).toLocaleString()} | 总薪资 ¥{Math.round(stats.totalSalary).toLocaleString()} | 
+                  利润 <span className={getColor(stats.totalProfit)}>¥{Math.round(stats.totalProfit).toLocaleString()}</span>
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -629,21 +838,38 @@ export default function SmartPerformanceDashboard() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-slate-50">
                     <TableRow>
-                      <TableHead>时段</TableHead><TableHead>班次</TableHead>
-                      <TableHead className="text-right">卸车量</TableHead><TableHead className="text-right">卸车人</TableHead><TableHead className="text-right">卸车薪</TableHead><TableHead className="text-right">卸车盈</TableHead>
-                      <TableHead className="text-right">集包量</TableHead><TableHead className="text-right">集包人</TableHead><TableHead className="text-right">集包收</TableHead><TableHead className="text-right">集包薪</TableHead><TableHead className="text-right">集包盈</TableHead>
-                      <TableHead className="text-right">环线量</TableHead><TableHead className="text-right">环线人</TableHead><TableHead className="text-right">环线收</TableHead><TableHead className="text-right">环线薪</TableHead><TableHead className="text-right">环线盈</TableHead>
-                      <TableHead className="text-right">管理薪</TableHead><TableHead className="text-right">其他</TableHead>
-                      <TableHead className="text-right">总收入</TableHead><TableHead className="text-right">总薪资</TableHead><TableHead className="text-right">利润</TableHead>
+                      <TableHead>时段</TableHead>
+                      <TableHead>班次</TableHead>
+                      <TableHead className="text-right">卸车量</TableHead>
+                      <TableHead className="text-right">卸车人</TableHead>
+                      <TableHead className="text-right">卸车薪</TableHead>
+                      <TableHead className="text-right">卸车盈</TableHead>
+                      <TableHead className="text-right">集包量</TableHead>
+                      <TableHead className="text-right">集包人</TableHead>
+                      <TableHead className="text-right">集包收</TableHead>
+                      <TableHead className="text-right">集包薪</TableHead>
+                      <TableHead className="text-right">集包盈</TableHead>
+                      <TableHead className="text-right">环线量</TableHead>
+                      <TableHead className="text-right">环线人</TableHead>
+                      <TableHead className="text-right">环线收</TableHead>
+                      <TableHead className="text-right">环线薪</TableHead>
+                      <TableHead className="text-right">环线盈</TableHead>
+                      <TableHead className="text-right">管理薪</TableHead>
+                      <TableHead className="text-right">其他</TableHead>
+                      <TableHead className="text-right">利润</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredData.length === 0 ? (
-                      <TableRow><TableCell colSpan={20} className="text-center py-8">暂无数据</TableCell></TableRow>
+                      <TableRow>
+                        <TableCell colSpan={19} className="text-center py-8 text-slate-500">暂无数据</TableCell>
+                      </TableRow>
                     ) : filteredData.map((d, i) => (
                       <TableRow key={i}>
                         <TableCell className="font-medium">{d.timeSlot}</TableCell>
-                        <TableCell><Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge></TableCell>
+                        <TableCell>
+                          <Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge>
+                        </TableCell>
                         <TableCell className="text-right">{d.unloadCount.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{d.unloadStaff}</TableCell>
                         <TableCell className="text-right text-red-500">¥{d.unloadSalary.toFixed(0)}</TableCell>
@@ -660,8 +886,6 @@ export default function SmartPerformanceDashboard() {
                         <TableCell className={`text-right ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
                         <TableCell className="text-right text-red-500">¥{d.manageSalary.toFixed(0)}</TableCell>
                         <TableCell className="text-right text-red-500">¥{d.otherCost.toFixed(0)}</TableCell>
-                        <TableCell className="text-right">¥{d.totalRevenue.toFixed(0)}</TableCell>
-                        <TableCell className="text-right">¥{d.totalSalary.toFixed(0)}</TableCell>
                         <TableCell className={`text-right font-bold ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
                       </TableRow>
                     ))}
@@ -675,9 +899,14 @@ export default function SmartPerformanceDashboard() {
       
       <footer className="border-t border-slate-200 bg-white/50 mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-slate-500">
-          物流绩效分析系统 · 基于你提供的公式计算
+          物流绩效分析系统 · 智能排班自动盈亏计算
         </div>
       </footer>
     </div>
   );
+}
+
+// 需要添加 Label 组件
+function Label({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <label className={`text-sm font-medium ${className}`}>{children}</label>;
 }
