@@ -10,11 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area
+  PieChart, Pie, Cell, AreaChart, Area, LineChart, Line
 } from 'recharts';
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
-  FileUp, Trash2, Users
+  FileUp, Trash2, Users, TrendingUp, DollarSign, Package, Truck, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -57,37 +57,37 @@ interface StaffConfig {
   night: number;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = {
+  primary: '#2563eb',
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  purple: '#8b5cf6',
+  cyan: '#06b6d4',
+  unload: '#3b82f6',
+  package: '#10b981',
+  loop: '#f59e0b'
+};
+
+const COLORS_ARRAY = [COLORS.unload, COLORS.package, COLORS.loop];
 
 // ============ 常量 ============
 const PACKAGE_UNIT_PRICE = 0.06859;
 const LOOP_UNIT_PRICE = 0.276355;
 
 // ============ 计算公式 ============
-
-/**
- * 管理薪资: IF(管理人数=2, 21.79+16000/30/24, 25.75+12000/30/24*2+30000/30/24)
- */
 function calcManageSalary(manageCount: number): number {
   if (manageCount === 2) {
-    // 夜班
     return 21.79 + 16000 / 30 / 24;
   } else {
-    // 白班
     return 25.75 + 12000 / 30 / 24 * 2 + 30000 / 30 / 24;
   }
 }
 
-/**
- * 卸车薪资: 卸车人数 * 14.62 + 21
- */
 function calcUnloadSalary(staffCount: number): number {
   return staffCount * 14.62 + 21;
 }
 
-/**
- * 集包薪资: (集包人数-13) * 14.62 + 13 * 18 + 21
- */
 function calcPackageSalary(staffCount: number): number {
   if (staffCount <= 13) {
     return staffCount * 18 + 21;
@@ -95,9 +95,6 @@ function calcPackageSalary(staffCount: number): number {
   return (staffCount - 13) * 14.62 + 13 * 18 + 21;
 }
 
-/**
- * 环线薪资: (环线人数-13) * 14.62 + 13 * 18 + 42
- */
 function calcLoopSalary(staffCount: number): number {
   if (staffCount <= 13) {
     return staffCount * 18 + 42;
@@ -105,28 +102,14 @@ function calcLoopSalary(staffCount: number): number {
   return (staffCount - 13) * 14.62 + 13 * 18 + 42;
 }
 
-/**
- * 集包收入: 集包量 * 0.06859
- */
 function calcPackageRevenue(packageCount: number): number {
   return packageCount * PACKAGE_UNIT_PRICE;
 }
 
-/**
- * 环线收入: 环线量 * 0.276355
- */
 function calcLoopRevenue(loopCount: number): number {
   return loopCount * LOOP_UNIT_PRICE;
 }
 
-/**
- * 其他成本:
- * (文件人数-1) * 14.62 + 9000/26/13
- * + (发验人数-1) * 14.54 + 7500/26/11
- * + 客服人数 * (4200/26/9)
- * + 接发员 * (4000/26/11)
- * + 2000/24
- */
 function calcOtherCost(
   fileStaff: number,
   inspectStaff: number,
@@ -152,19 +135,14 @@ function smartAllocate(
   isWhite: boolean
 ): { unload: number; package: number; loop: number; file: number; inspect: number; service: number; receive: number } {
   const total = unloadCount + packageCount + loopCount;
-  
-  // 其他人员（固定配置）
   const file = isWhite ? 0 : 4;
   const inspect = isWhite ? 2 : 3;
   const service = isWhite ? 2 : 0;
   const receive = 1;
   const fixedStaff = file + inspect + service + receive;
-  
-  // 可分配给三个环节的人数
   const allocatable = Math.max(1, totalStaff - fixedStaff);
   
   if (total === 0) {
-    // 默认分配
     return {
       unload: Math.round(allocatable * 0.25),
       package: Math.round(allocatable * 0.35),
@@ -173,12 +151,10 @@ function smartAllocate(
     };
   }
   
-  // 根据业务量比例分配
   let unloadRatio = unloadCount / total;
   let packageRatio = packageCount / total;
   let loopRatio = loopCount / total;
   
-  // 高峰时段加权
   const hour = parseInt(currentTimeSlot.split('-')[0]);
   const isPeak = hour >= 8 && hour <= 14;
   if (isPeak) {
@@ -187,7 +163,6 @@ function smartAllocate(
     loopRatio *= 1.2;
   }
   
-  // 归一化
   const sum = unloadRatio + packageRatio + loopRatio;
   unloadRatio /= sum;
   packageRatio /= sum;
@@ -197,19 +172,15 @@ function smartAllocate(
   let package_ = Math.round(allocatable * packageRatio);
   let loop = Math.round(allocatable * loopRatio);
   
-  // 白班环线复用
   if (isWhite && loop > 0 && unload > 0) {
     const reuse = Math.min(Math.floor(unload * 0.15), Math.floor(loop * 0.25));
     loop += reuse;
     unload -= reuse;
   }
   
-  // 确保总人数
   const current = unload + package_ + loop;
   const diff = allocatable - current;
-  if (diff !== 0) {
-    package_ += diff;
-  }
+  if (diff !== 0) package_ += diff;
   
   return {
     unload: Math.max(1, unload),
@@ -227,14 +198,13 @@ function parseDate(value: unknown): string {
     return format(date, 'yyyy-MM-dd');
   }
   if (typeof value === 'string') {
-    // 处理中文日期如 "4月1日"
     const chineseMatch = value.match(/(\d+)月(\d+)日/);
     if (chineseMatch) {
       const month = chineseMatch[1].padStart(2, '0');
       const day = chineseMatch[2].padStart(2, '0');
       return `2026-${month}-${day}`;
     }
-    const formats = ['yyyy/MM/dd', 'yyyy-M-d', 'd-MMM-yyyy', 'MM/dd/yyyy', 'yyyy.MM.dd'];
+    const formats = ['yyyy/MM/dd', 'yyyy-M-d', 'MM/dd/yyyy', 'yyyy.MM.dd'];
     for (const fmt of formats) {
       try {
         const parsed = parse(value, fmt, new Date());
@@ -254,8 +224,6 @@ export default function SmartPerformanceDashboard() {
   const [selectedShift, setSelectedShift] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  
-  // 班次人数配置
   const [staffConfig, setStaffConfig] = useState<StaffConfig>({ white: 70, night: 95 });
   
   // 计算数据
@@ -265,53 +233,26 @@ export default function SmartPerformanceDashboard() {
         currentTimeSlot = row.timeSlot;
         const isWhite = row.shift === '白班';
         const totalStaff = isWhite ? staffConfig.white : staffConfig.night;
-        
-        // 智能分配人数
         const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite);
         
-        // 管理薪资
         const manageSalary = calcManageSalary(row.manageCount);
-        
-        // 卸车薪资
         const unloadSalary = calcUnloadSalary(allocation.unload);
         const unloadProfit = 0 - unloadSalary;
-        
-        // 集包
         const packageRevenue = calcPackageRevenue(row.packageCount);
         const packageSalary = calcPackageSalary(allocation.package);
         const packageProfit = packageRevenue - packageSalary;
-        
-        // 环线
         const loopRevenue = calcLoopRevenue(row.loopCount);
         const loopSalary = calcLoopSalary(allocation.loop);
         const loopProfit = loopRevenue - loopSalary;
-        
-        // 其他成本
         const otherCost = calcOtherCost(allocation.file, allocation.inspect, allocation.service, allocation.receive);
-        
-        // 总盈亏
         const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
         
         return {
           ...row,
-          unloadStaff: allocation.unload,
-          packageStaff: allocation.package,
-          loopStaff: allocation.loop,
-          fileStaff: allocation.file,
-          inspectStaff: allocation.inspect,
-          serviceStaff: allocation.service,
-          receiveStaff: allocation.receive,
-          manageSalary,
-          unloadSalary,
-          unloadProfit,
-          packageRevenue,
-          packageSalary,
-          packageProfit,
-          loopRevenue,
-          loopSalary,
-          loopProfit,
-          otherCost,
-          totalProfit
+          unloadStaff: allocation.unload, packageStaff: allocation.package, loopStaff: allocation.loop,
+          fileStaff: allocation.file, inspectStaff: allocation.inspect, serviceStaff: allocation.service, receiveStaff: allocation.receive,
+          manageSalary, unloadSalary, unloadProfit, packageRevenue, packageSalary, packageProfit,
+          loopRevenue, loopSalary, loopProfit, otherCost, totalProfit
         };
       });
       setCalculatedData(calculated);
@@ -326,10 +267,7 @@ export default function SmartPerformanceDashboard() {
     return result;
   }, [calculatedData, selectedDate, selectedShift]);
   
-  // 可用日期
-  const availableDates = useMemo(() => {
-    return [...new Set(uploadedData.map(d => d.date))].sort();
-  }, [uploadedData]);
+  const availableDates = useMemo(() => [...new Set(uploadedData.map(d => d.date))].sort(), [uploadedData]);
   
   // 统计
   const stats = useMemo(() => {
@@ -357,17 +295,35 @@ export default function SmartPerformanceDashboard() {
   
   // 图表数据
   const pieData = useMemo(() => [
-    { name: '卸车', value: stats.totalUnload, color: COLORS[0] },
-    { name: '集包', value: stats.totalPackage, color: COLORS[1] },
-    { name: '环线', value: stats.totalLoop, color: COLORS[2] }
+    { name: '卸车', value: stats.totalUnload, color: COLORS.unload },
+    { name: '集包', value: stats.totalPackage, color: COLORS.package },
+    { name: '环线', value: stats.totalLoop, color: COLORS.loop }
   ], [stats]);
   
-  const profitData = useMemo(() => filteredData.map(d => ({
+  const profitTrendData = useMemo(() => filteredData.map(d => ({
+    name: d.timeSlot, date: d.date,
+    利润: Math.round(d.totalProfit),
+    收入: Math.round(d.packageRevenue + d.loopRevenue),
+    薪资: Math.round(d.unloadSalary + d.packageSalary + d.loopSalary)
+  })), [filteredData]);
+  
+  const hourlyProfitData = useMemo(() => {
+    const map = new Map<string, number>();
+    calculatedData.forEach(d => {
+      const hour = d.timeSlot.split('-')[0];
+      map.set(hour, (map.get(hour) || 0) + d.totalProfit);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([hour, profit]) => ({ hour: `${hour}-${String(parseInt(hour) + 1).padStart(4, '0')}`, 利润: Math.round(profit) }));
+  }, [calculatedData]);
+  
+  const revenueDetailData = useMemo(() => filteredData.map(d => ({
     name: d.timeSlot,
     集包收入: Math.round(d.packageRevenue),
     环线收入: Math.round(d.loopRevenue),
-    卸车薪资: Math.round(d.unloadSalary),
-    利润: Math.round(d.totalProfit)
+    卸车成本: Math.round(d.unloadSalary),
+    管理成本: Math.round(d.manageSalary),
+    其他成本: Math.round(d.otherCost)
   })), [filteredData]);
   
   // Excel上传
@@ -375,20 +331,14 @@ export default function SmartPerformanceDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const wb = XLSX.read(ev.target?.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+        if (json.length === 0) { setNotification({ type: 'error', message: '文件为空' }); return; }
         
-        if (json.length === 0) {
-          setNotification({ type: 'error', message: '文件为空' });
-          return;
-        }
-        
-        // 查找列名
         const keys = Object.keys(json[0]);
         const findCol = (patterns: string[]): string | undefined => {
           for (const key of keys) {
@@ -405,43 +355,28 @@ export default function SmartPerformanceDashboard() {
         const loopCountCol = findCol(['环线量']);
         const packageCountCol = findCol(['集包量']);
         
-        if (!dateCol || !timeCol) {
-          setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' });
-          return;
-        }
+        if (!dateCol || !timeCol) { setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' }); return; }
         
         const parsed: UploadedData[] = json.map(row => {
           const timeSlot = String(row[timeCol!] || '').trim();
           const hour = parseInt(timeSlot.split('-')[0]);
           const shift = hour >= 7 && hour < 18 ? '白班' : '夜班';
-          
           return {
-            date: parseDate(row[dateCol!]),
-            timeSlot,
-            shift,
-            freq: '',
+            date: parseDate(row[dateCol!]), timeSlot, shift, freq: '',
             unloadCount: Number(row[unloadCountCol!] || 0),
             loopCount: Number(row[loopCountCol!] || 0),
             packageCount: Number(row[packageCountCol!] || 0),
             manageCount: shift === '夜班' ? 2 : 4,
-            unloadStaff: 0,
-            packageStaff: 0,
-            loopStaff: 0,
-            fileStaff: 0,
-            inspectStaff: 0,
-            serviceStaff: 0,
-            receiveStaff: 0
+            unloadStaff: 0, packageStaff: 0, loopStaff: 0,
+            fileStaff: 0, inspectStaff: 0, serviceStaff: 0, receiveStaff: 0
           };
         }).filter(d => d.date && d.timeSlot);
         
-        if (parsed.length === 0) {
-          setNotification({ type: 'error', message: '未找到有效数据' });
-          return;
-        }
+        if (parsed.length === 0) { setNotification({ type: 'error', message: '未找到有效数据' }); return; }
         
         setUploadedData(parsed);
         setSelectedDate('all');
-        setNotification({ type: 'success', message: `导入 ${parsed.length} 条数据` });
+        setNotification({ type: 'success', message: `成功导入 ${parsed.length} 条数据` });
       } catch (err) {
         console.error(err);
         setNotification({ type: 'error', message: '解析失败' });
@@ -483,150 +418,193 @@ export default function SmartPerformanceDashboard() {
     setNotification({ type: 'success', message: '导出成功' });
   };
   
-  // 清除
   const clearData = () => {
-    setUploadedData([]);
-    setCalculatedData([]);
-    setSelectedDate('all');
-    setSelectedShift('all');
+    setUploadedData([]); setCalculatedData([]); setSelectedDate('all'); setSelectedShift('all');
     setNotification({ type: 'success', message: '数据已清除' });
   };
   
   useEffect(() => {
-    if (notification) {
-      const t = setTimeout(() => setNotification(null), 3000);
-      return () => clearTimeout(t);
-    }
+    if (notification) { const t = setTimeout(() => setNotification(null), 3000); return () => clearTimeout(t); }
   }, [notification]);
   
-  const getColor = (v: number) => v >= 0 ? 'text-emerald-500' : 'text-red-500';
+  const getColor = (v: number) => v >= 0 ? 'text-emerald-600' : 'text-red-600';
+  const getBgColor = (v: number) => v >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200';
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100">
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'} text-white`}>
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl ${notification.type === 'success' ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-red-500 to-rose-500'} text-white`}>
           {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-          <span>{notification.message}</span>
+          <span className="font-medium">{notification.message}</span>
         </div>
       )}
       
       {/* 头部 */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
+      <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-2xl sticky top-0 z-40">
+        <div className="container mx-auto px-6 py-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                物流绩效分析系统
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">智能排班 · 自动盈亏计算</p>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 via-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <TrendingUp className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">物流绩效分析系统</h1>
+                <p className="text-slate-400 text-sm mt-0.5">智能排班 · 数据驱动 · 精准分析</p>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={downloadTemplate}>
-                <Download className="w-4 h-4 mr-2" />模板
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={downloadTemplate}>
+                <Download className="w-4 h-4 mr-2" />模板下载
               </Button>
-              <Button variant="outline" size="sm" onClick={exportData} disabled={calculatedData.length === 0}>
-                <FileSpreadsheet className="w-4 h-4 mr-2" />导出
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={exportData} disabled={calculatedData.length === 0}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />导出报表
               </Button>
-              <Button variant="destructive" size="sm" onClick={clearData} disabled={uploadedData.length === 0}>
-                <Trash2 className="w-4 h-4 mr-2" />清除
+              <Button variant="destructive" className="bg-red-500/80 hover:bg-red-500" onClick={clearData} disabled={uploadedData.length === 0}>
+                <Trash2 className="w-4 h-4 mr-2" />清空数据
               </Button>
             </div>
           </div>
         </div>
       </header>
       
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-6 py-8 space-y-8">
         {/* 上传区域 */}
-        <Card className="border-2 border-dashed border-blue-300">
+        <Card className="border-2 border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50">
           <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              <label className="cursor-pointer">
-                <div className={`flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all ${uploading ? 'opacity-50' : ''}`}>
-                  <FileUp className="w-6 h-6" />
-                  <span>{uploading ? '导入中...' : '上传业务数据'}</span>
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8">
+              <label className="cursor-pointer group">
+                <div className="flex items-center gap-4 px-8 py-5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-2xl shadow-xl group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                  <FileUp className="w-8 h-8" />
+                  <div className="text-left">
+                    <span className="text-lg font-bold block">{uploading ? '数据导入中...' : '上传业务数据'}</span>
+                    <span className="text-blue-200 text-sm">支持 .xlsx .xls 格式</span>
+                  </div>
                 </div>
                 <input type="file" accept=".xlsx,.xls" onChange={handleUpload} className="hidden" />
               </label>
-              <div className="text-sm text-slate-600">
-                <p className="font-medium">表头：日期 | 时段 | 卸车量 | 集包量 | 环线量</p>
-                <p className="text-xs mt-1">上传业务量数据，系统自动计算盈亏</p>
+              <div className="text-slate-600 space-y-1 text-center md:text-left">
+                <p className="font-semibold text-lg">Excel表头要求</p>
+                <p className="text-sm">日期 | 时段 | 卸车量 | 集包量 | 环线量</p>
+                <p className="text-xs text-slate-500">系统将根据业务量自动分配各环节人数</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         {/* 班次人数配置 */}
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
+        <Card className="bg-white shadow-lg border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl">
+            <CardTitle className="flex items-center gap-3">
+              <Users className="w-6 h-6" />
               班次人数配置
+              <Badge className="ml-auto bg-white/20 text-white">智能分配</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <span className="w-20 text-sm font-medium">白班人数</span>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">白</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-700">白班 (07:00-18:00)</p>
+                  <p className="text-sm text-slate-500">日出时段</p>
+                </div>
                 <Input
                   type="number"
                   value={staffConfig.white}
                   onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
-                  className="w-28"
+                  className="w-24 text-center font-bold text-lg bg-white"
                 />
-                <span className="text-sm text-slate-500">(07:00-18:00)</span>
+                <span className="text-slate-500">人</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="w-20 text-sm font-medium">夜班人数</span>
+              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">夜</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-700">夜班 (18:00-07:00)</p>
+                  <p className="text-sm text-slate-500">夜间时段</p>
+                </div>
                 <Input
                   type="number"
                   value={staffConfig.night}
                   onChange={e => setStaffConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
-                  className="w-28"
+                  className="w-24 text-center font-bold text-lg bg-white"
                 />
-                <span className="text-sm text-slate-500">(18:00-07:00)</span>
+                <span className="text-slate-500">人</span>
               </div>
             </div>
-            <p className="text-xs text-blue-600 mt-3">人数用于验证总表人数是否匹配</p>
           </CardContent>
         </Card>
         
         {/* 统计卡片 */}
         {uploadedData.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-              <CardContent className="p-3">
-                <p className="text-blue-100 text-xs">卸车总量</p>
-                <p className="text-xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Truck className="w-8 h-8 opacity-80" />
+                  <div>
+                    <p className="text-blue-100 text-sm">卸车总量</p>
+                    <p className="text-2xl font-bold">{stats.totalUnload.toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
-              <CardContent className="p-3">
-                <p className="text-emerald-100 text-xs">集包总量</p>
-                <p className="text-xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Package className="w-8 h-8 opacity-80" />
+                  <div>
+                    <p className="text-emerald-100 text-sm">集包总量</p>
+                    <p className="text-2xl font-bold">{stats.totalPackage.toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white">
-              <CardContent className="p-3">
-                <p className="text-amber-100 text-xs">环线总量</p>
-                <p className="text-xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <TrendingUp className="w-8 h-8 opacity-80" />
+                  <div>
+                    <p className="text-amber-100 text-sm">环线总量</p>
+                    <p className="text-2xl font-bold">{stats.totalLoop.toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white">
-              <CardContent className="p-3">
-                <p className="text-teal-100 text-xs">总收入</p>
-                <p className="text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <DollarSign className="w-8 h-8 opacity-80" />
+                  <div>
+                    <p className="text-teal-100 text-sm">总收入</p>
+                    <p className="text-2xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white">
-              <CardContent className="p-3">
-                <p className="text-rose-100 text-xs">总薪资</p>
-                <p className="text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <DollarSign className="w-8 h-8 opacity-80" />
+                  <div>
+                    <p className="text-rose-100 text-sm">总薪资</p>
+                    <p className="text-2xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} text-white`}>
-              <CardContent className="p-3">
-                <p className="text-white/80 text-xs">总利润</p>
-                <p className="text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+            <Card className={`shadow-lg ${stats.totalProfit >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-br from-red-500 to-rose-500 text-white'}`}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  {stats.totalProfit >= 0 ? <ArrowUp className="w-8 h-8 opacity-80" /> : <ArrowDown className="w-8 h-8 opacity-80" />}
+                  <div>
+                    <p className="text-white/80 text-sm">总利润</p>
+                    <p className="text-2xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -634,34 +612,39 @@ export default function SmartPerformanceDashboard() {
         
         {/* 按天汇总 */}
         {uploadedData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">按日汇总</CardTitle>
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl">
+              <CardTitle className="flex items-center gap-3">
+                <Calendar className="w-6 h-6" />
+                每日汇总
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>日期</TableHead>
-                      <TableHead className="text-right">总收入</TableHead>
-                      <TableHead className="text-right">总薪资</TableHead>
-                      <TableHead className="text-right">总利润</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dailyStats.map(d => (
-                      <TableRow key={d.date}>
-                        <TableCell className="font-medium">{d.date}</TableCell>
-                        <TableCell className="text-right">¥{Math.round(d.revenue).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">¥{Math.round(d.salary).toLocaleString()}</TableCell>
-                        <TableCell className={`text-right font-bold ${getColor(d.profit)}`}>
-                          ¥{Math.round(d.profit).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {dailyStats.map(d => (
+                  <div key={d.date} className={`p-5 rounded-xl border-2 ${getBgColor(d.profit)}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-bold text-lg text-slate-700">{d.date}</span>
+                      <Badge className={d.profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}>
+                        {d.profit >= 0 ? '盈利' : '亏损'}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">总收入</span>
+                        <span className="font-semibold text-teal-600">¥{Math.round(d.revenue).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">总薪资</span>
+                        <span className="font-semibold text-rose-600">¥{Math.round(d.salary).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm pt-2 border-t">
+                        <span className="font-semibold text-slate-700">利润</span>
+                        <span className={`font-bold text-lg ${getColor(d.profit)}`}>¥{Math.round(d.profit).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -669,227 +652,247 @@ export default function SmartPerformanceDashboard() {
         
         {/* 筛选 */}
         {uploadedData.length > 0 && (
-          <Card>
-            <CardContent className="pt-4">
+          <Card className="bg-white shadow-lg border-0">
+            <CardContent className="p-4">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-purple-500" />
-                  <span className="font-medium">筛选：</span>
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-slate-400" />
+                  <span className="font-semibold text-slate-600">数据筛选</span>
                 </div>
                 <Select value={selectedDate} onValueChange={setSelectedDate}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-40"><SelectValue placeholder="选择日期" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部日期</SelectItem>
-                    {availableDates.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
+                    {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-32"><SelectValue placeholder="选择班次" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部班次</SelectItem>
                     <SelectItem value="白班">白班</SelectItem>
                     <SelectItem value="夜班">夜班</SelectItem>
                   </SelectContent>
                 </Select>
-                <Badge variant="outline">{filteredData.length} 条</Badge>
+                <Badge variant="outline" className="text-sm px-3 py-1">{filteredData.length} 条记录</Badge>
               </div>
             </CardContent>
           </Card>
         )}
         
-        {/* 图表 */}
+        {/* 图表区域 - 两列布局 */}
         {uploadedData.length > 0 && (
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="grid grid-cols-3 w-full">
-              <TabsTrigger value="overview">总览</TabsTrigger>
-              <TabsTrigger value="trend">趋势</TabsTrigger>
-              <TabsTrigger value="profit">盈亏明细</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>业务量占比</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[300px]">
-                      <ResponsiveContainer>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={5}
-                            dataKey="value"
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(v: number) => v.toLocaleString()} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>收入对比</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[300px]">
-                      <ResponsiveContainer>
-                        <BarChart data={profitData.slice(0, 12)}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(v: number) => `¥${v}`} />
-                          <Legend />
-                          <Bar dataKey="集包收入" fill="#10b981" />
-                          <Bar dataKey="环线收入" fill="#3b82f6" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="trend">
-              <Card>
-                <CardHeader>
-                  <CardTitle>利润趋势</CardTitle>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* 左列 */}
+            <div className="space-y-6">
+              {/* 业务量占比 */}
+              <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    业务量占比分析
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]">
+                <CardContent className="p-6">
+                  <div className="h-[350px]">
                     <ResponsiveContainer>
-                      <AreaChart data={profitData}>
-                        <defs>
-                          <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" outerRadius={120} innerRadius={60} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
+                          {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => v.toLocaleString()} />
                         <Legend />
-                        <Area type="monotone" dataKey="利润" stroke="#3b82f6" fill="url(#colorProfit)" />
-                      </AreaChart>
+                      </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-            
-            <TabsContent value="profit">
-              <Card>
-                <CardHeader>
-                  <CardTitle>盈亏明细</CardTitle>
+              
+              {/* 成本明细 */}
+              <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-rose-600 to-rose-700 text-white">
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5" />
+                    成本结构分析
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]">
+                <CardContent className="p-6">
+                  <div className="h-[350px]">
                     <ResponsiveContainer>
-                      <BarChart data={profitData}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                      <BarChart data={revenueDetailData.slice(0, 12)} barCategoryGap="20%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip formatter={(v: number) => `¥${v}`} />
                         <Legend />
-                        <Bar dataKey="集包收入" fill="#10b981" />
-                        <Bar dataKey="环线收入" fill="#3b82f6" />
-                        <Bar dataKey="卸车薪资" fill="#f59e0b" />
+                        <Bar dataKey="卸车成本" fill={COLORS.unload} stackId="a" />
+                        <Bar dataKey="管理成本" fill={COLORS.purple} stackId="a" />
+                        <Bar dataKey="其他成本" fill={COLORS.danger} stackId="a" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            </div>
+            
+            {/* 右列 */}
+            <div className="space-y-6">
+              {/* 利润趋势 */}
+              <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    利润趋势分析
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="h-[350px]">
+                    <ResponsiveContainer>
+                      <AreaChart data={profitTrendData}>
+                        <defs>
+                          <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.4} />
+                            <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                        <Legend />
+                        <Area type="monotone" dataKey="利润" stroke={COLORS.success} fill="url(#colorProfit)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="收入" stroke={COLORS.primary} fill="url(#colorRevenue)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* 各时段利润对比 */}
+              <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-amber-600 to-amber-700 text-white">
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    各时段利润对比
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="h-[350px]">
+                    <ResponsiveContainer>
+                      <BarChart data={hourlyProfitData} barCategoryGap="15%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="hour" tick={{ fontSize: 9 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={(v: number) => `¥${v}`} />
+                        <Bar dataKey="利润" fill={COLORS.success}>
+                          {hourlyProfitData.map((entry, i) => (
+                            <Cell key={i} fill={entry.利润 >= 0 ? COLORS.success : COLORS.danger} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+        
+        {/* 收入明细图表 */}
+        {uploadedData.length > 0 && (
+          <Card className="bg-white shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white">
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                收入明细趋势
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="h-[400px]">
+                <ResponsiveContainer>
+                  <LineChart data={revenueDetailData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(v: number) => `¥${v}`} />
+                    <Legend />
+                    <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         )}
         
         {/* 数据表格 */}
         {uploadedData.length > 0 && (
-          <Card>
-            <CardHeader>
+          <Card className="bg-white shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5" />
-                  完整数据
+                <CardTitle className="flex items-center gap-3">
+                  <FileSpreadsheet className="w-6 h-6" />
+                  完整数据明细
                 </CardTitle>
-                <Badge variant="outline">
-                  总收入 ¥{Math.round(stats.totalRevenue).toLocaleString()} | 总薪资 ¥{Math.round(stats.totalSalary).toLocaleString()} | 
-                  利润 <span className={getColor(stats.totalProfit)}>¥{Math.round(stats.totalProfit).toLocaleString()}</span>
-                </Badge>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="bg-emerald-500/20 px-3 py-1 rounded-full">总收入 ¥{Math.round(stats.totalRevenue).toLocaleString()}</span>
+                  <span className="bg-rose-500/20 px-3 py-1 rounded-full">总薪资 ¥{Math.round(stats.totalSalary).toLocaleString()}</span>
+                  <span className={`px-3 py-1 rounded-full ${stats.totalProfit >= 0 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>利润 ¥{Math.round(stats.totalProfit).toLocaleString()}</span>
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto max-h-[600px]">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50">
+                  <TableHeader className="sticky top-0 bg-slate-100 z-10">
                     <TableRow>
-                      <TableHead>时段</TableHead>
-                      <TableHead>班次</TableHead>
-                      <TableHead className="text-right">卸车量</TableHead>
-                      <TableHead className="text-right">卸车人</TableHead>
-                      <TableHead className="text-right">卸车薪</TableHead>
-                      <TableHead className="text-right">卸车盈</TableHead>
-                      <TableHead className="text-right">集包量</TableHead>
-                      <TableHead className="text-right">集包人</TableHead>
-                      <TableHead className="text-right">集包收</TableHead>
-                      <TableHead className="text-right">集包薪</TableHead>
-                      <TableHead className="text-right">集包盈</TableHead>
-                      <TableHead className="text-right">环线量</TableHead>
-                      <TableHead className="text-right">环线人</TableHead>
-                      <TableHead className="text-right">环线收</TableHead>
-                      <TableHead className="text-right">环线薪</TableHead>
-                      <TableHead className="text-right">环线盈</TableHead>
-                      <TableHead className="text-right">管理薪</TableHead>
-                      <TableHead className="text-right">其他</TableHead>
-                      <TableHead className="text-right">利润</TableHead>
+                      <TableHead className="font-bold">时段</TableHead>
+                      <TableHead className="font-bold">班次</TableHead>
+                      <TableHead className="text-right font-bold">卸车量</TableHead>
+                      <TableHead className="text-right font-bold">卸车人</TableHead>
+                      <TableHead className="text-right font-bold text-rose-600">卸车薪</TableHead>
+                      <TableHead className="text-right font-bold">集包量</TableHead>
+                      <TableHead className="text-right font-bold">集包人</TableHead>
+                      <TableHead className="text-right font-bold text-emerald-600">集包收</TableHead>
+                      <TableHead className="text-right font-bold text-rose-600">集包薪</TableHead>
+                      <TableHead className="text-right font-bold">集包盈</TableHead>
+                      <TableHead className="text-right font-bold">环线量</TableHead>
+                      <TableHead className="text-right font-bold">环线人</TableHead>
+                      <TableHead className="text-right font-bold text-emerald-600">环线收</TableHead>
+                      <TableHead className="text-right font-bold text-rose-600">环线薪</TableHead>
+                      <TableHead className="text-right font-bold">环线盈</TableHead>
+                      <TableHead className="text-right font-bold text-rose-600">管理薪</TableHead>
+                      <TableHead className="text-right font-bold text-rose-600">其他</TableHead>
+                      <TableHead className="text-right font-bold">利润</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={19} className="text-center py-8 text-slate-500">暂无数据</TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={18} className="text-center py-12 text-slate-400">暂无数据</TableCell></TableRow>
                     ) : filteredData.map((d, i) => (
-                      <TableRow key={i}>
+                      <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                         <TableCell className="font-medium">{d.timeSlot}</TableCell>
-                        <TableCell>
-                          <Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge>
-                        </TableCell>
+                        <TableCell><Badge className={d.shift === '白班' ? 'bg-amber-500' : 'bg-slate-600'}>{d.shift}</Badge></TableCell>
                         <TableCell className="text-right">{d.unloadCount.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{d.unloadStaff}</TableCell>
-                        <TableCell className="text-right text-red-500">¥{d.unloadSalary.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right ${getColor(d.unloadProfit)}`}>¥{d.unloadProfit.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-rose-600">¥{d.unloadSalary.toFixed(0)}</TableCell>
                         <TableCell className="text-right">{d.packageCount.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{d.packageStaff}</TableCell>
-                        <TableCell className="text-right text-emerald-500">¥{d.packageRevenue.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-red-500">¥{d.packageSalary.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right ${getColor(d.packageProfit)}`}>¥{d.packageProfit.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-emerald-600">¥{d.packageRevenue.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-rose-600">¥{d.packageSalary.toFixed(0)}</TableCell>
+                        <TableCell className={`text-right font-medium ${getColor(d.packageProfit)}`}>¥{d.packageProfit.toFixed(0)}</TableCell>
                         <TableCell className="text-right">{d.loopCount.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{d.loopStaff}</TableCell>
-                        <TableCell className="text-right text-emerald-500">¥{d.loopRevenue.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-red-500">¥{d.loopSalary.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-red-500">¥{d.manageSalary.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-red-500">¥{d.otherCost.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right font-bold ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-emerald-600">¥{d.loopRevenue.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-rose-600">¥{d.loopSalary.toFixed(0)}</TableCell>
+                        <TableCell className={`text-right font-medium ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-rose-600">¥{d.manageSalary.toFixed(0)}</TableCell>
+                        <TableCell className="text-right text-rose-600">¥{d.otherCost.toFixed(0)}</TableCell>
+                        <TableCell className={`text-right font-bold text-lg ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -900,9 +903,15 @@ export default function SmartPerformanceDashboard() {
         )}
       </main>
       
-      <footer className="border-t border-slate-200 bg-white/50 mt-8">
-        <div className="container mx-auto px-4 py-4 text-center text-sm text-slate-500">
-          物流绩效分析系统 · 基于Excel公式计算
+      <footer className="bg-slate-900 text-slate-400 mt-12">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="w-5 h-5 text-slate-500" />
+              <span className="font-semibold text-white">物流绩效分析系统</span>
+            </div>
+            <p className="text-sm text-slate-500">智能排班自动盈亏计算 · 数据驱动决策</p>
+          </div>
         </div>
       </footer>
     </div>
