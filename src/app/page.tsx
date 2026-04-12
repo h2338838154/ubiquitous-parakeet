@@ -322,7 +322,20 @@ export default function SmartPerformanceDashboard() {
         // 适配中文列名，日期可能是数字(Excel序列号)或字符串
         const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => {
           const rawDate = row['日期'];
-          const dateStr = typeof rawDate === 'number' ? excelSerialToDate(rawDate) : String(rawDate);
+          let dateStr: string;
+          if (typeof rawDate === 'number') {
+            dateStr = excelSerialToDate(rawDate);
+          } else if (typeof rawDate === 'string') {
+            // 可能是纯数字字符串
+            const num = parseInt(rawDate, 10);
+            if (!isNaN(num) && rawDate.match(/^\d+$/)) {
+              dateStr = excelSerialToDate(num);
+            } else {
+              dateStr = rawDate;
+            }
+          } else {
+            dateStr = String(rawDate);
+          }
           return {
             date: dateStr,
             timeSlot: row['时段'],
