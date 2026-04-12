@@ -97,17 +97,17 @@ function calcLoopSalary(staffCount: number): number {
 }
 
 /**
- * 集包收入: 集包量 * 0.94
+ * 集包收入: 集包量 * 0.06859
  */
 function calcPackageRevenue(packageCount: number): number {
-  return packageCount * 0.94;
+  return packageCount * 0.06859;
 }
 
 /**
- * 环线收入: 环线量 * 0.2909 * 0.95
+ * 环线收入: 环线量 * 0.276355
  */
 function calcLoopRevenue(loopCount: number): number {
-  return loopCount * 0.2909 * 0.95;
+  return loopCount * 0.276355;
 }
 
 /**
@@ -473,7 +473,7 @@ export default function SmartPerformanceDashboard() {
               </label>
               <div className="text-sm text-slate-600">
                 <p className="font-medium">表头：日期 | 时段 | 班次 | 管理人数 | 卸车量/人数 | 集包量/人数 | 环线量/人数 | 特快 | 文件 | 发验 | 客服 | 接发员</p>
-                <p className="text-xs mt-1">收入公式：集包量×0.94 | 环线量×0.2909×0.95</p>
+                <p className="text-xs mt-1">收入公式：集包量×0.06859 | 环线量×0.276355</p>
               </div>
             </div>
           </CardContent>
