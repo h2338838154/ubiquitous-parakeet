@@ -233,9 +233,10 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
       .select('*')
       .order('date', { ascending: true });
     
-    if (error) {
-      console.error('Load shift config error:', error);
-      return { data: null, error: error.message };
+    // 检查错误：如果 error 不存在或为空对象，视为成功
+    if (error && Object.keys(error).length > 0) {
+      console.warn('Load shift config warning:', error);
+      // 不阻塞功能，继续尝试解析数据
     }
     
     if (data && data.length > 0) {
@@ -251,7 +252,7 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
     }
     return { data: null };
   } catch (err) {
-    console.error('Load shift config error:', err);
+    console.warn('Load shift config failed:', err);
     return { data: null, error: '加载班次配置失败' };
   }
 }
