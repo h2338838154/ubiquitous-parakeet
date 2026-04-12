@@ -117,9 +117,18 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   }
 }
 
-// 班次配置（简化版本，存到 localStorage）
+// 班次配置（按日期存储，存到 localStorage）
+export interface DailyStaffConfig {
+  [date: string]: {
+    white: number;
+    middle: number;
+    night: number;
+  };
+}
+
 export interface ShiftConfig {
   date: string;
+  configs: DailyStaffConfig;
   white: number;
   middle: number;
   night: number;
@@ -131,14 +140,14 @@ export function saveShiftConfig(config: ShiftConfig): void {
   }
 }
 
-export function loadShiftConfig(): { data: ShiftConfig[] } {
+export function loadShiftConfig(): { data: ShiftConfig | null } {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('shift_config');
     if (stored) {
-      return { data: [JSON.parse(stored)] };
+      return { data: JSON.parse(stored) };
     }
   }
-  return { data: [] };
+  return { data: null };
 }
 
 // 清除数据

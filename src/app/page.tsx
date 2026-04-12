@@ -57,11 +57,12 @@ interface CalculatedData extends UploadedData {
 }
 
 interface StaffConfig {
-  date: string;
   white: number;
   middle: number;
   night: number;
 }
+
+type DailyStaffConfig = Record<string, StaffConfig>;
 
 const COLORS = {
   primary: '#2563eb',
@@ -255,7 +256,8 @@ export default function SmartPerformanceDashboard() {
   const [selectedShift, setSelectedShift] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [staffConfig, setStaffConfig] = useState<StaffConfig>({ date: format(new Date(), 'yyyy-MM-dd'), white: 70, middle: 0, night: 95 });
+  const [staffConfig, setStaffConfig] = useState<DailyStaffConfig>({});
+  const [configDate, setConfigDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -292,6 +294,19 @@ export default function SmartPerformanceDashboard() {
             setUploadedData(parsed);
             setHasCloudData(true);
             setSelectedDate('all');
+            
+            // 为每个日期创建默认班次配置
+            const dates = [...new Set(parsed.map(d => d.date))];
+            const defaultConfig: DailyStaffConfig = {};
+            dates.forEach(date => {
+              defaultConfig[date] = { white: 70, middle: 0, night: 95 };
+            });
+            setStaffConfig(defaultConfig);
+            
+            // 设置配置日期为第一个有数据的日期
+            if (dates.length > 0) {
+              setConfigDate(dates.sort()[0]);
+            }
           } else {
             setHasCloudData(false);
           }
@@ -358,6 +373,19 @@ export default function SmartPerformanceDashboard() {
         setUploadedData(parsed);
         setHasCloudData(true);
         setNotification({ type: 'success', message: `成功加载 ${parsed.length} 条云端数据` });
+        
+        // 为每个日期创建默认班次配置
+        const dates = [...new Set(parsed.map(d => d.date))];
+        const defaultConfig: DailyStaffConfig = {};
+        dates.forEach(date => {
+          defaultConfig[date] = { white: 70, middle: 0, night: 95 };
+        });
+        setStaffConfig(defaultConfig);
+        
+        // 设置配置日期为第一个有数据的日期
+        if (dates.length > 0) {
+          setConfigDate(dates.sort()[0]);
+        }
       } else {
         setNotification({ type: 'success', message: '云端暂无数据' });
       }
@@ -421,12 +449,13 @@ export default function SmartPerformanceDashboard() {
         throw new Error(saveResult.error);
       }
       
-      // 保存班次配置到 localStorage
+      // 保存班次配置到 localStorage (按日期存储)
       saveShiftConfig({
-        date: staffConfig.date,
-        white: staffConfig.white,
-        middle: staffConfig.middle,
-        night: staffConfig.night
+        date: configDate,
+        configs: staffConfig,
+        white: staffConfig[configDate]?.white ?? 70,
+        middle: staffConfig[configDate]?.middle ?? 0,
+        night: staffConfig[configDate]?.night ?? 95
       });
       
       setHasCloudData(true);
@@ -443,6 +472,20 @@ export default function SmartPerformanceDashboard() {
   const loadExampleData = () => {
     setUploadedData(EXAMPLE_DATA);
     setSelectedDate('all');
+    
+    // 为每个日期创建默认班次配置
+    const dates = [...new Set(EXAMPLE_DATA.map(d => d.date))];
+    const defaultConfig: DailyStaffConfig = {};
+    dates.forEach(date => {
+      defaultConfig[date] = { white: 70, middle: 0, night: 95 };
+    });
+    setStaffConfig(defaultConfig);
+    
+    // 设置配置日期为第一个有数据的日期
+    if (dates.length > 0) {
+      setConfigDate(dates.sort()[0]);
+    }
+    
     setNotification({ type: 'success', message: `已加载示例数据 ${EXAMPLE_DATA.length} 条` });
   };
   
@@ -453,7 +496,10 @@ export default function SmartPerformanceDashboard() {
         currentTimeSlot = row.timeSlot;
         const isWhite = row.shift === '白班';
         const isMiddle = row.shift === '中班';
-        const totalStaff = isWhite ? staffConfig.white : isMiddle ? staffConfig.middle : staffConfig.night;
+        
+        // 获取该日期的班次配置，如果没有则使用默认值
+        const dateConfig = staffConfig[row.date] || { white: 70, middle: 0, night: 95 };
+        const totalStaff = isWhite ? dateConfig.white : isMiddle ? dateConfig.middle : dateConfig.night;
         const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite, isMiddle);
         
         const manageSalary = calcManageSalary(row.manageCount);
@@ -803,22 +849,26 @@ export default function SmartPerformanceDashboard() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Users className="w-5 h-5" />
               班次配置
-              <Badge className="ml-auto bg-white/20 text-white text-xs">智能分配</Badge>
+              <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            {/* 日期选择 - 移动端一行显示 */}
+            {/* 日期选择 */}
             <div className="flex items-center gap-3 mb-4 pb-3 border-b">
               <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span className="font-medium text-slate-700 text-sm flex-shrink-0">配置日期</span>
-              <Input
-                type="date"
-                value={staffConfig.date}
-                onChange={e => setStaffConfig(s => ({ ...s, date: e.target.value }))}
-                className="flex-1 min-w-0"
-              />
+              <Select value={configDate} onValueChange={setConfigDate}>
+                <SelectTrigger className="flex-1 min-w-0">
+                  <SelectValue placeholder="选择日期" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDates.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {/* 班次卡片 - 移动端2列网格 */}
+            {/* 当前日期的班次配置 */}
             <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
@@ -831,8 +881,11 @@ export default function SmartPerformanceDashboard() {
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
-                    value={staffConfig.white}
-                    onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
+                    value={staffConfig[configDate]?.white ?? 70}
+                    onChange={e => setStaffConfig(s => ({
+                      ...s,
+                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
+                    }))}
                     className="w-16 text-center font-bold bg-white"
                   />
                   <span className="text-slate-500 text-xs">人</span>
@@ -849,8 +902,11 @@ export default function SmartPerformanceDashboard() {
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
-                    value={staffConfig.middle}
-                    onChange={e => setStaffConfig(s => ({ ...s, middle: Number(e.target.value) || 0 }))}
+                    value={staffConfig[configDate]?.middle ?? 0}
+                    onChange={e => setStaffConfig(s => ({
+                      ...s,
+                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, middle: Number(e.target.value) || 0 }
+                    }))}
                     className="w-16 text-center font-bold bg-white"
                   />
                   <span className="text-slate-500 text-xs">人</span>
@@ -867,8 +923,11 @@ export default function SmartPerformanceDashboard() {
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
-                    value={staffConfig.night}
-                    onChange={e => setStaffConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
+                    value={staffConfig[configDate]?.night ?? 95}
+                    onChange={e => setStaffConfig(s => ({
+                      ...s,
+                      [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, night: Number(e.target.value) || 0 }
+                    }))}
                     className="w-16 text-center font-bold bg-white"
                   />
                   <span className="text-slate-500 text-xs">人</span>
