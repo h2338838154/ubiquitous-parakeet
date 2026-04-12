@@ -57,7 +57,9 @@ interface CalculatedData extends UploadedData {
 }
 
 interface StaffConfig {
+  date: string;
   white: number;
+  middle: number;
   night: number;
 }
 
@@ -160,12 +162,13 @@ function smartAllocate(
   unloadCount: number,
   packageCount: number,
   loopCount: number,
-  isWhite: boolean
+  isWhite: boolean,
+  isMiddle: boolean = false
 ): { unload: number; package: number; loop: number; file: number; inspect: number; service: number; receive: number } {
   const total = unloadCount + packageCount + loopCount;
-  const file = isWhite ? 0 : 4;
-  const inspect = isWhite ? 2 : 3;
-  const service = isWhite ? 2 : 0;
+  const file = isWhite ? 0 : isMiddle ? 2 : 4;
+  const inspect = isWhite ? 2 : isMiddle ? 2 : 3;
+  const service = isWhite ? 2 : isMiddle ? 1 : 0;
   const receive = 1;
   const fixedStaff = file + inspect + service + receive;
   const allocatable = Math.max(1, totalStaff - fixedStaff);
@@ -252,7 +255,7 @@ export default function SmartPerformanceDashboard() {
   const [selectedShift, setSelectedShift] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [staffConfig, setStaffConfig] = useState<StaffConfig>({ white: 70, night: 95 });
+  const [staffConfig, setStaffConfig] = useState<StaffConfig>({ date: format(new Date(), 'yyyy-MM-dd'), white: 70, middle: 0, night: 95 });
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -368,6 +371,7 @@ export default function SmartPerformanceDashboard() {
       for (const date of dates) {
         const dayData = calculatedData.filter(d => d.date === date);
         const hasWhite = dayData.some(d => d.shift === '白班');
+        const hasMiddle = dayData.some(d => d.shift === '中班');
         const hasNight = dayData.some(d => d.shift === '夜班');
         
         if (hasWhite) {
@@ -382,6 +386,20 @@ export default function SmartPerformanceDashboard() {
             receiver_count: whiteData.reduce((s, d) => s + d.receiveStaff, 0)
           };
           await saveShiftConfig(whiteConfig);
+        }
+        
+        if (hasMiddle) {
+          const middleData = dayData.filter(d => d.shift === '中班');
+          const middleConfig: ShiftConfig = {
+            date,
+            shift_type: '中班',
+            unload_count: middleData.reduce((s, d) => s + d.unloadStaff, 0),
+            package_count: middleData.reduce((s, d) => s + d.packageStaff, 0),
+            loop_count: middleData.reduce((s, d) => s + d.loopStaff, 0),
+            sender_count: middleData.reduce((s, d) => s + d.fileStaff, 0),
+            receiver_count: middleData.reduce((s, d) => s + d.receiveStaff, 0)
+          };
+          await saveShiftConfig(middleConfig);
         }
         
         if (hasNight) {
@@ -400,13 +418,13 @@ export default function SmartPerformanceDashboard() {
       }
       
       // 更新班次人数配置
-      const latestDate = dates.sort()[dates.length - 1];
+      const configDate = staffConfig.date;
       await saveShiftConfig({
-        date: latestDate,
+        date: configDate,
         shift_type: '配置',
         unload_count: staffConfig.white,
-        package_count: staffConfig.night,
-        loop_count: 0,
+        package_count: staffConfig.middle,
+        loop_count: staffConfig.night,
         sender_count: 0,
         receiver_count: 0
       });
@@ -434,8 +452,9 @@ export default function SmartPerformanceDashboard() {
       const calculated = uploadedData.map(row => {
         currentTimeSlot = row.timeSlot;
         const isWhite = row.shift === '白班';
-        const totalStaff = isWhite ? staffConfig.white : staffConfig.night;
-        const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite);
+        const isMiddle = row.shift === '中班';
+        const totalStaff = isWhite ? staffConfig.white : isMiddle ? staffConfig.middle : staffConfig.night;
+        const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite, isMiddle);
         
         const manageSalary = calcManageSalary(row.manageCount);
         const unloadSalary = calcUnloadSalary(allocation.unload);
@@ -553,6 +572,7 @@ export default function SmartPerformanceDashboard() {
         
         const dateCol = findCol(['日期', 'date']);
         const timeCol = findCol(['时段', 'time']);
+        const shiftCol = findCol(['班次', 'shift']);
         const unloadCountCol = findCol(['卸车量']);
         const loopCountCol = findCol(['环线量']);
         const packageCountCol = findCol(['集包量']);
@@ -562,7 +582,20 @@ export default function SmartPerformanceDashboard() {
         const parsed: UploadedData[] = json.map(row => {
           const timeSlot = String(row[timeCol!] || '').trim();
           const hour = parseInt(timeSlot.split('-')[0]);
-          const shift = hour >= 7 && hour < 18 ? '白班' : '夜班';
+          
+          // 优先使用班次列，否则根据时间自动判断
+          let shift: string;
+          if (shiftCol && row[shiftCol]) {
+            const shiftValue = String(row[shiftCol!]).trim();
+            if (shiftValue.includes('白')) shift = '白班';
+            else if (shiftValue.includes('中')) shift = '中班';
+            else if (shiftValue.includes('夜')) shift = '夜班';
+            else shift = hour >= 7 && hour < 14 ? '白班' : hour >= 14 && hour < 18 ? '中班' : '夜班';
+          } else {
+            // 自动判断: 白班(7-14), 中班(14-18), 夜班(其他)
+            shift = hour >= 7 && hour < 14 ? '白班' : hour >= 14 && hour < 18 ? '中班' : '夜班';
+          }
+          
           return {
             date: parseDate(row[dateCol!]), timeSlot, shift, freq: '',
             unloadCount: Number(row[unloadCountCol!] || 0),
@@ -738,7 +771,19 @@ export default function SmartPerformanceDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mb-6">
+              <div className="flex items-center gap-4">
+                <Calendar className="w-5 h-5 text-slate-500" />
+                <span className="font-semibold text-slate-700">配置日期</span>
+                <Input
+                  type="date"
+                  value={staffConfig.date}
+                  onChange={e => setStaffConfig(s => ({ ...s, date: e.target.value }))}
+                  className="w-40 bg-white"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
                   <span className="text-white font-bold text-lg">白</span>
@@ -751,6 +796,22 @@ export default function SmartPerformanceDashboard() {
                   type="number"
                   value={staffConfig.white}
                   onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
+                  className="w-24 text-center font-bold text-lg bg-white"
+                />
+                <span className="text-slate-500">人</span>
+              </div>
+              <div className="flex items-center gap-4 p-4 bg-green-50 rounded-xl border border-green-100">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">中</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-700">中班 (可选)</p>
+                  <p className="text-sm text-slate-500">午间时段</p>
+                </div>
+                <Input
+                  type="number"
+                  value={staffConfig.middle}
+                  onChange={e => setStaffConfig(s => ({ ...s, middle: Number(e.target.value) || 0 }))}
                   className="w-24 text-center font-bold text-lg bg-white"
                 />
                 <span className="text-slate-500">人</span>
@@ -916,6 +977,7 @@ export default function SmartPerformanceDashboard() {
                   <SelectContent>
                     <SelectItem value="all">全部班次</SelectItem>
                     <SelectItem value="白班">白班</SelectItem>
+                    <SelectItem value="中班">中班</SelectItem>
                     <SelectItem value="夜班">夜班</SelectItem>
                   </SelectContent>
                 </Select>
