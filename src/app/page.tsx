@@ -17,7 +17,7 @@ import {
   Download, TrendingUp, Package, Truck, RotateCw,
   DollarSign, Users, FileSpreadsheet, AlertCircle, CheckCircle, Brain,
   TrendingDown, Activity, PieChart as PieChartIcon, BarChart3,
-  Settings2, Target, FileUp, Trash2
+  Settings2, Target, FileUp, Trash2, Calendar
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -210,7 +210,7 @@ export default function SmartPerformanceDashboard() {
   // 筛选数据
   const filteredData = useMemo(() => {
     let result = [...calculatedData];
-    if (selectedDate) {
+    if (selectedDate && selectedDate !== 'all') {
       result = result.filter(item => item.date === selectedDate);
     }
     if (selectedShift !== 'all') {
@@ -218,6 +218,12 @@ export default function SmartPerformanceDashboard() {
     }
     return result;
   }, [calculatedData, selectedDate, selectedShift]);
+  
+  // 获取所有可用日期
+  const availableDates = useMemo(() => {
+    const dates = [...new Set(uploadedData.map(d => d.date))].sort();
+    return dates;
+  }, [uploadedData]);
   
   // 统计汇总
   const stats = useMemo(() => {
@@ -624,6 +630,36 @@ export default function SmartPerformanceDashboard() {
           </Card>
         </div>
         
+        {/* 日期筛选 */}
+        {uploadedData.length > 0 && (
+          <Card className="border-purple-200 dark:border-purple-800">
+            <CardContent className="pt-4">
+              <div className="flex flex-col md:flex-row items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-purple-500" />
+                  <span className="font-medium">选择日期：</span>
+                </div>
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="全部日期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部日期</SelectItem>
+                    {availableDates.map(date => (
+                      <SelectItem key={date} value={date}>
+                        {date}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Badge variant="secondary" className="ml-2">
+                  共 {availableDates.length} 天数据
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         {/* 图表区域 */}
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className="grid grid-cols-4 w-full">
@@ -770,12 +806,23 @@ export default function SmartPerformanceDashboard() {
         {/* 数据表格 */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-blue-500" />
                 数据明细
               </CardTitle>
               <div className="flex items-center gap-2">
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="全部日期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部日期</SelectItem>
+                    {availableDates.map(date => (
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select value={selectedShift} onValueChange={setSelectedShift}>
                   <SelectTrigger className="w-32"><SelectValue placeholder="全部班次" /></SelectTrigger>
                   <SelectContent>
