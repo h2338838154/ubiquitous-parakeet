@@ -130,6 +130,15 @@ function parseDate(value: unknown): string {
   return String(value);
 }
 
+// ============ 薪资计算 ============
+// 根据人数段计算单人薪资（参考模板数据）
+function getPerPersonSalary(count: number, shift: 'white' | 'night'): number {
+  if (count <= 5) return shift === 'white' ? 20 : 21;
+  if (count <= 10) return shift === 'white' ? 18 : 19;
+  if (count <= 20) return shift === 'white' ? 16.5 : 17;
+  return shift === 'white' ? 15.8 : 16;
+}
+
 // ============ 计算数据 ============
 function calculateData(
   uploadedData: UploadedData[],
@@ -138,36 +147,43 @@ function calculateData(
   return uploadedData.map(data => {
     const staff = staffConfig[data.timeSlot] || { unload: 0, package: 0, northLoop: 0, southLoop: 0, express: 0, reused: 0 };
     const isWhiteShift = WHITE_RANGES.includes(data.timeSlot);
+    const shiftType = isWhiteShift ? 'white' : 'night';
     
     const totalLoop = data.loopCount;
-    const totalStaff = staff.unload + staff.package + staff.northLoop + staff.southLoop + staff.express + staff.reused;
+    const totalStaff = staff.unload + staff.package + staff.northLoop + staff.southLoop;
     
-    // 人效
+    // 人效 = 业务量 / 人数
     const unloadEfficiency = staff.unload > 0 ? data.unloadCount / staff.unload : 0;
     const packageEfficiency = staff.package > 0 ? data.packageCount / staff.package : 0;
-    const loopEfficiency = totalLoop > 0 ? totalLoop / (staff.northLoop + staff.southLoop) : 0;
+    const loopEfficiency = totalLoop > 0 && (staff.northLoop + staff.southLoop) > 0 ? totalLoop / (staff.northLoop + staff.southLoop) : 0;
     
-    // 收入
-    const unloadRevenue = data.unloadCount * 0.05;
-    const packageRevenue = data.packageCount * 0.06;
-    const loopRevenue = totalLoop * 0.08;
+    // 【关键修正】收入计算（根据模板）
+    // 卸车：收入 ≈ 0（卸车是成本中心，不产生直接收入）
+    const unloadRevenue = 0;
+    // 集包：收入 = 量 × 0.0645
+    const packageRevenue = data.packageCount * 0.0645;
+    // 环线：收入 = 量 × 0.2598
+    const loopRevenue = totalLoop * 0.2598;
     
-    // 薪资
-    const getSalary = (eff: number, base: number) => {
-      if (eff > 800) return base * 1.4;
-      if (eff > 600) return base * 1.2;
-      if (eff > 400) return base * 1.0;
-      if (eff > 200) return base * 0.9;
-      return base * 0.8;
-    };
+    // 薪资计算 = 人数 × 单人薪资
+    const unloadSalary = staff.unload * getPerPersonSalary(staff.unload, shiftType);
+    const packageSalary = staff.package * getPerPersonSalary(staff.package, shiftType);
+    const loopSalary = (staff.northLoop + staff.southLoop) * getPerPersonSalary(staff.northLoop + staff.southLoop, shiftType);
     
-    const unloadSalary = getSalary(unloadEfficiency, 280) * staff.unload;
-    const packageSalary = getSalary(packageEfficiency, 320) * staff.package;
-    const loopSalary = getSalary(loopEfficiency, 480) * (staff.northLoop + staff.southLoop);
+    // 盈亏 = 收入 - 薪资
+    const unloadProfit = unloadRevenue - unloadSalary;
+    const packageProfit = packageRevenue - packageSalary;
+    const loopProfit = loopRevenue - loopSalary;
     
+    // 其他成本（场地、设备等固定成本分摊到每个时段）
+    const otherCost = isWhiteShift ? 150 : 180;
+    
+    // 总盈亏 = 各环节盈亏 - 其他成本
+    const totalProfit = unloadProfit + packageProfit + loopProfit - otherCost;
+    
+    // 总收入和总薪资
     const totalRevenue = unloadRevenue + packageRevenue + loopRevenue;
     const totalSalary = unloadSalary + packageSalary + loopSalary;
-    const totalProfit = totalRevenue - totalSalary;
     
     return {
       ...data,
