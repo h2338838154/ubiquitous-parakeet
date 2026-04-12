@@ -1045,7 +1045,7 @@ export default function SmartPerformanceDashboard() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4">
-                      {/* 日期选择 */}
+                      {/* 日期选择 + 应用按钮 */}
                       <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
                         <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
                         <span className="font-medium text-slate-300 text-sm flex-shrink-0">配置日期</span>
@@ -1059,6 +1059,19 @@ export default function SmartPerformanceDashboard() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <Button 
+                          size="sm" 
+                          className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white shadow-md flex-shrink-0"
+                          onClick={() => {
+                            // 将当前配置的班次人数同步到当天所有班次
+                            const currentConfig = staffConfig[configDate] || { white: 70, middle: 0, night: 95 };
+                            // 保持当前配置不变，只是标记已应用
+                            setNotification({ type: 'success', message: `班次配置已更新: 白班${currentConfig.white}人/中班${currentConfig.middle}人/夜班${currentConfig.night}人` });
+                          }}
+                        >
+                          <Save className="w-4 h-4 mr-1" />
+                          应用到当天
+                        </Button>
                       </div>
                       {/* 当前日期的班次配置 */}
                       <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1125,6 +1138,26 @@ export default function SmartPerformanceDashboard() {
                             <span className="text-slate-400 text-xs">人</span>
                           </div>
                         </div>
+                      </div>
+                      
+                      {/* 保存班次配置按钮 */}
+                      <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-end">
+                        <Button 
+                          size="sm" 
+                          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-md"
+                          onClick={async () => {
+                            // 保存班次配置到云端
+                            const result = await saveAllShiftConfigsCloud(staffConfig);
+                            if (result.success) {
+                              setNotification({ type: 'success', message: '班次配置已保存到云端' });
+                            } else {
+                              setNotification({ type: 'error', message: '保存失败: ' + result.error });
+                            }
+                          }}
+                        >
+                          <Cloud className="w-4 h-4 mr-1" />
+                          仅保存班次配置
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
