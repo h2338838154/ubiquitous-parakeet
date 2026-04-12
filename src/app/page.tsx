@@ -599,6 +599,28 @@ export default function SmartPerformanceDashboard() {
     return { totalUnload, totalPackage, totalLoop, totalRevenue, totalSalary, totalProfit };
   }, [filteredData]);
   
+  // 切换日期时自动从云端加载班次配置
+  useEffect(() => {
+    const loadConfigForDate = async () => {
+      if (!configDate || !isCloudConnected) return;
+      
+      try {
+        const cloudConfig = await loadShiftConfigCloud();
+        if (cloudConfig.data && cloudConfig.data[configDate]) {
+          // 从云端加载该日期的配置
+          setStaffConfig(prev => ({
+            ...prev,
+            [configDate]: cloudConfig.data![configDate]
+          }));
+        }
+      } catch (err) {
+        console.warn('加载日期配置失败:', err);
+      }
+    };
+    
+    loadConfigForDate();
+  }, [configDate, isCloudConnected]);
+  
   // 按天汇总
   const dailyStats = useMemo(() => {
     const map = new Map<string, { date: string; profit: number; revenue: number; salary: number }>();
