@@ -75,7 +75,9 @@ const COLORS = {
   cyan: '#06b6d4',
   unload: '#3b82f6',
   package: '#10b981',
-  loop: '#f59e0b'
+  loop: '#f59e0b',
+  packageCost: '#ec4899',
+  loopCost: '#f97316'
 };
 
 // ============ 常量 ============
@@ -276,6 +278,11 @@ export default function SmartPerformanceDashboard() {
           setIsCloudConnected(false);
         } else {
           setIsCloudConnected(true);
+          
+          // 无论是否有业务数据，都尝试加载班次配置
+          const cloudConfig = await loadShiftConfigCloud();
+          const savedStaffConfig = cloudConfig.data || {};
+          
           if (data && data.length > 0) {
             // 解析日期（可能是Excel序列号或字符串）
             const parseDateValue = (val: unknown): string => {
@@ -312,25 +319,15 @@ export default function SmartPerformanceDashboard() {
             setHasCloudData(true);
             setSelectedDate('all');
             
-            // 为每个日期创建默认班次配置
+            // 为每个日期创建班次配置，优先使用云端配置
             const dates = [...new Set(parsed.map(d => d.date))].sort();
-            const defaultConfig: DailyStaffConfig = {};
             dates.forEach(date => {
-              defaultConfig[date] = { white: 70, middle: 0, night: 95 };
+              if (!savedStaffConfig[date]) {
+                savedStaffConfig[date] = { white: 70, middle: 0, night: 95 };
+              }
             });
             
-            // 尝试从云端加载班次配置
-            const cloudConfig = await loadShiftConfigCloud();
-            if (cloudConfig.data) {
-              // 合并云端配置和本地默认配置
-              Object.entries(cloudConfig.data).forEach(([date, config]) => {
-                if (dates.includes(date)) {
-                  defaultConfig[date] = config;
-                }
-              });
-            }
-            
-            setStaffConfig(defaultConfig);
+            setStaffConfig(savedStaffConfig);
             
             // 设置配置日期为第一个有数据的日期
             if (dates.length > 0) {
@@ -338,6 +335,10 @@ export default function SmartPerformanceDashboard() {
             }
           } else {
             setHasCloudData(false);
+            // 即使没有业务数据，也设置已加载的班次配置
+            if (Object.keys(savedStaffConfig).length > 0) {
+              setStaffConfig(savedStaffConfig);
+            }
           }
         }
       } catch {
@@ -403,22 +404,24 @@ export default function SmartPerformanceDashboard() {
         setHasCloudData(true);
         setNotification({ type: 'success', message: `成功加载 ${parsed.length} 条云端数据` });
         
-        // 为每个日期创建默认班次配置
+        // 为每个日期创建班次配置，优先使用云端配置
         const dates = [...new Set(parsed.map(d => d.date))];
         const defaultConfig: DailyStaffConfig = {};
-        dates.forEach(date => {
-          defaultConfig[date] = { white: 70, middle: 0, night: 95 };
-        });
         
-        // 尝试从云端加载班次配置
+        // 先尝试从云端加载班次配置
         const cloudConfig = await loadShiftConfigCloud();
         if (cloudConfig.data) {
           Object.entries(cloudConfig.data).forEach(([date, config]) => {
-            if (dates.includes(date)) {
-              defaultConfig[date] = config;
-            }
+            defaultConfig[date] = config;
           });
         }
+        
+        // 为没有云端配置的日期填充默认值
+        dates.forEach(date => {
+          if (!defaultConfig[date]) {
+            defaultConfig[date] = { white: 70, middle: 0, night: 95 };
+          }
+        });
         
         setStaffConfig(defaultConfig);
         
@@ -638,6 +641,8 @@ export default function SmartPerformanceDashboard() {
     集包收入: Math.round(d.packageRevenue),
     环线收入: Math.round(d.loopRevenue),
     卸车成本: Math.round(d.unloadSalary),
+    集包成本: Math.round(d.packageSalary),
+    环线成本: Math.round(d.loopSalary),
     管理成本: Math.round(d.manageSalary),
     其他成本: Math.round(d.otherCost)
   })), [filteredData]);
@@ -1469,6 +1474,8 @@ export default function SmartPerformanceDashboard() {
                                 <Tooltip formatter={(v: number) => `¥${v}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
                                 <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
                                 <Line type="monotone" dataKey="卸车成本" stroke={COLORS.unload} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="集包成本" stroke={COLORS.packageCost} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="环线成本" stroke={COLORS.loopCost} strokeWidth={2} dot={{ r: 3 }} />
                                 <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
                                 <Line type="monotone" dataKey="其他成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
                               </LineChart>
