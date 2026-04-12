@@ -19,7 +19,7 @@ import {
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { 
-  saveLogisticsData, loadLogisticsData, 
+  saveLogisticsData, loadLogisticsData, saveShiftConfig,
   loadShiftConfigCloud, saveAllShiftConfigsCloud,
   clearLogisticsData,
   type LogisticsDataRow, type DailyStaffConfig, dateToExcelSerial, excelSerialToDate
