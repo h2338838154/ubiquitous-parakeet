@@ -261,23 +261,46 @@ export default function SmartPerformanceDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasCloudData, setHasCloudData] = useState(false);
   
-  // 检查云端连接
+  // 检查云端连接并自动加载数据
   useEffect(() => {
-    const checkCloudConnection = async () => {
+    const checkCloudAndLoad = async () => {
       try {
-        // 直接测试云端连接
         const { data, error } = await loadLogisticsData();
         if (error) {
           setIsCloudConnected(false);
         } else {
           setIsCloudConnected(true);
-          setHasCloudData((data || []).length > 0);
+          if (data && data.length > 0) {
+            const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
+              date: String(row['日期']),
+              timeSlot: row['时段'],
+              shift: row['班次'] || '白班',
+              freq: row['频次'] || '',
+              unloadCount: row['卸车量'] || 0,
+              loopCount: row['环线量'] || 0,
+              packageCount: row['集包量'] || 0,
+              manageCount: row['管理'] || 4,
+              unloadStaff: row['卸车人数'] || 0,
+              packageStaff: row['集包人数'] || 0,
+              loopStaff: row['环线人数'] || 0,
+              fileStaff: row['文件人数'] || 0,
+              inspectStaff: row['发验人数'] || 0,
+              serviceStaff: row['客服人数'] || 0,
+              receiveStaff: 0
+            }));
+            setUploadedData(parsed);
+            setHasCloudData(true);
+            setSelectedDate('all');
+          } else {
+            setHasCloudData(false);
+          }
         }
       } catch {
         setIsCloudConnected(false);
+        setHasCloudData(false);
       }
     };
-    checkCloudConnection();
+    checkCloudAndLoad();
   }, []);
   
   // 从云端加载数据
