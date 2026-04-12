@@ -31,6 +31,8 @@ const eslintConfig = defineConfig([
     'dist/**',
     // Script files (CommonJS):
     'scripts/**/*.js',
+    // Supabase client template (uses require for dotenv compatibility):
+    'src/storage/database/supabase-client.ts',
   ]),
 ]);
 
