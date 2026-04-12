@@ -97,17 +97,17 @@ function calcLoopSalary(staffCount: number): number {
 }
 
 /**
- * 集包收入: 集包人数 * 集包量 * 0.94
+ * 集包收入: 集包量 * 0.94
  */
-function calcPackageRevenue(staffCount: number, packageCount: number): number {
-  return staffCount * packageCount * 0.94;
+function calcPackageRevenue(packageCount: number): number {
+  return packageCount * 0.94;
 }
 
 /**
- * 环线收入: 环线人数 * 环线量 * 0.94
+ * 环线收入: 环线量 * 0.2909 * 0.95
  */
-function calcLoopRevenue(staffCount: number, loopCount: number): number {
-  return staffCount * loopCount * 0.94;
+function calcLoopRevenue(loopCount: number): number {
+  return loopCount * 0.2909 * 0.95;
 }
 
 /**
@@ -184,8 +184,8 @@ export default function SmartPerformanceDashboard() {
         const loopSalary = calcLoopSalary(row.loopStaff);
         
         // 各环节收入
-        const packageRevenue = calcPackageRevenue(row.packageStaff, row.packageCount);
-        const loopRevenue = calcLoopRevenue(row.loopStaff, row.loopCount);
+        const packageRevenue = calcPackageRevenue(row.packageCount);
+        const loopRevenue = calcLoopRevenue(row.loopCount);
         
         // 卸车盈亏（无收入）
         const unloadProfit = 0 - unloadSalary;
@@ -473,7 +473,7 @@ export default function SmartPerformanceDashboard() {
               </label>
               <div className="text-sm text-slate-600">
                 <p className="font-medium">表头：日期 | 时段 | 班次 | 管理人数 | 卸车量/人数 | 集包量/人数 | 环线量/人数 | 特快 | 文件 | 发验 | 客服 | 接发员</p>
-                <p className="text-xs mt-1">收入公式：人数 × 业务量 × 0.94</p>
+                <p className="text-xs mt-1">收入公式：集包量×0.94 | 环线量×0.2909×0.95</p>
               </div>
             </div>
           </CardContent>
