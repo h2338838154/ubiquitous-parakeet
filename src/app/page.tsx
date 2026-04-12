@@ -10,34 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import {
-  Download, TrendingUp, Package, Truck, RotateCw,
-  DollarSign, Users, FileSpreadsheet, AlertCircle, CheckCircle, Brain,
-  TrendingDown, Activity, PieChart as PieChartIcon, BarChart3,
-  Settings2, Target, FileUp, Trash2, Calendar, Edit3, Plus, Minus
+  Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
+  FileUp, Trash2, Users, Calculator
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 // ============ 类型定义 ============
-interface StaffAllocation {
-  unload: number;      // 卸车网格
-  package: number;     // 集包网格
-  northLoop: number;   // 北环网格
-  southLoop: number;   // 南环网格
-  express: number;     // 特快
-  reused: number;      // 复用人员（从卸车复用去环线）
-}
-
-interface TimeSlotConfig {
-  timeSlot: string;
-  shift: string;
-  staff: StaffAllocation;
-  notes: string;
-}
-
 interface UploadedData {
   date: string;
   timeSlot: string;
@@ -69,7 +51,7 @@ interface CalculatedData extends UploadedData {
   totalProfit: number;
 }
 
-// ============ 时段配置 ============
+// ============ 常量配置 ============
 const TIME_RANGES = [
   '0000-0100', '0100-0200', '0200-0300', '0300-0400', '0400-0500', '0500-0600', '0600-0700',
   '0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300', '1300-1400',
@@ -77,64 +59,16 @@ const TIME_RANGES = [
   '2100-2200', '2200-2300', '2300-0000'
 ];
 
+// 白班: 07-18时, 夜班: 18-07时
 const WHITE_RANGES = ['0700-0800', '0800-0900', '0900-1000', '1000-1100', '1100-1200', '1200-1300', '1300-1400', '1400-1500', '1500-1600', '1600-1700', '1700-1800'];
-const NIGHT_RANGES = ['1800-1900', '1900-2000', '2000-2100', '2100-2200', '2200-2300', '2300-0000', '0000-0100', '0100-0200', '0200-0300', '0300-0400', '0400-0500', '0500-0600', '0600-0700'];
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-// ============ 默认排班配置 ============
-const DEFAULT_STAFF_CONFIG: Record<string, StaffAllocation> = {
-  '0700-0800': { unload: 8, package: 21, northLoop: 16, southLoop: 0, express: 4, reused: 3 },
-  '0800-0900': { unload: 8, package: 21, northLoop: 17, southLoop: 0, express: 4, reused: 3 },
-  '0900-1000': { unload: 13, package: 21, northLoop: 14, southLoop: 0, express: 4, reused: 0 },
-  '1000-1100': { unload: 13, package: 21, northLoop: 14, southLoop: 0, express: 4, reused: 0 },
-  '1100-1200': { unload: 15, package: 21, northLoop: 14, southLoop: 0, express: 4, reused: 0 },
-  '1200-1300': { unload: 20, package: 4, northLoop: 29, southLoop: 0, express: 4, reused: 17 },
-  '1300-1400': { unload: 13, package: 27, northLoop: 16, southLoop: 0, express: 4, reused: 14 },
-  '1400-1500': { unload: 13, package: 27, northLoop: 16, southLoop: 0, express: 4, reused: 14 },
-  '1500-1600': { unload: 17, package: 23, northLoop: 16, southLoop: 0, express: 4, reused: 14 },
-  '1600-1700': { unload: 17, package: 23, northLoop: 16, southLoop: 0, express: 4, reused: 14 },
-  '1700-1800': { unload: 17, package: 23, northLoop: 16, southLoop: 0, express: 4, reused: 14 },
-  '1800-1900': { unload: 21, package: 15, northLoop: 39, southLoop: 0, express: 4, reused: 2 },
-  '1900-2000': { unload: 19, package: 30, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '2000-2100': { unload: 19, package: 30, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '2100-2200': { unload: 19, package: 30, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '2200-2300': { unload: 19, package: 30, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '2300-0000': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0000-0100': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0100-0200': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0200-0300': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0300-0400': { unload: 17, package: 18, northLoop: 30, southLoop: 0, express: 4, reused: 26 },
-  '0400-0500': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0500-0600': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-  '0600-0700': { unload: 17, package: 25, northLoop: 26, southLoop: 0, express: 4, reused: 3 },
-};
-
-// ============ 日期解析 ============
-function parseDate(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'number') {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return format(date, 'yyyy-MM-dd');
-  }
-  if (typeof value === 'string') {
-    const formats = ['yyyy/MM/dd', 'yyyy-M-d', 'd-MMM-yyyy', 'MM/dd/yyyy', 'yyyy.MM.dd'];
-    for (const fmt of formats) {
-      try {
-        const parsed = parse(value, fmt, new Date());
-        if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
-      } catch {}
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  }
-  return String(value);
-}
-
 // ============ 薪资基准配置（根据Excel模板提取） ============
 interface SalaryBaseConfig {
-  baseCount: number;  // 基准人数
-  baseSalary: number; // 基准薪资
-  increment: number;   // 增量单价（元/人）
+  baseCount: number;
+  baseSalary: number;
+  increment: number;
 }
 
 const SALARY_CONFIG: Record<string, Record<'white' | 'night', SalaryBaseConfig>> = {
@@ -152,32 +86,82 @@ const SALARY_CONFIG: Record<string, Record<'white' | 'night', SalaryBaseConfig>>
   }
 };
 
-// 管理薪资配置
 const MANAGER_SALARY = { white: 100.75, night: 44.01 };
-
-// ============ 收入单价（根据Excel模板精确提取） ============
-const REVENUE_PRICE = {
-  unload: 0,             // 卸车是成本中心，收入为0
-  package: 0.06447,      // 集包单价
-  loop: 0.25977          // 环线单价
-};
+const REVENUE_PRICE = { unload: 0, package: 0.06447, loop: 0.25977 };
+const DEFAULT_OTHER_COST = { white: 121, night: 167 };
 
 // ============ 薪资计算 ============
-// 根据公式: 薪资 = 基准薪资 + (人数 - 基准人数) × 增量单价
 function calculateSalary(count: number, config: SalaryBaseConfig): number {
   if (count === 0) return 0;
   return config.baseSalary + (count - config.baseCount) * config.increment;
 }
 
-// ============ 其他成本配置（平均值） ============
-// 注意：其他成本（场地、设备等）按天变化，这里使用平均值作为默认值
-const DEFAULT_OTHER_COST = { white: 121, night: 167 };
+// ============ 智能分配算法 ============
+// 根据总人数和业务量，自动分配各环节人数
+function smartAllocate(totalWhite: number, totalNight: number, data: UploadedData[]): Record<string, {
+  unload: number; package: number; northLoop: number; southLoop: number; express: number; reused: number
+}> {
+  const result: Record<string, {
+    unload: number; package: number; northLoop: number; southLoop: number; express: number; reused: number
+  }> = {};
+  
+  // 计算各时段的业务量占比
+  const totalUnload = data.reduce((s, d) => s + d.unloadCount, 0);
+  const totalPackage = data.reduce((s, d) => s + d.packageCount, 0);
+  const totalLoop = data.reduce((s, d) => s + d.loopCount, 0);
+  
+  TIME_RANGES.forEach(slot => {
+    const isWhite = WHITE_RANGES.includes(slot);
+    const slotData = data.find(d => d.timeSlot === slot);
+    const baseTotal = isWhite ? totalWhite : totalNight;
+    
+    if (!slotData || baseTotal === 0) {
+      result[slot] = { unload: 0, package: 0, northLoop: 0, southLoop: 0, express: 4, reused: 0 };
+      return;
+    }
+    
+    // 根据业务量占比分配
+    const weight = (slotData.unloadCount + slotData.packageCount + slotData.loopCount) / 
+                   (totalUnload + totalPackage + totalLoop) || 0.04;
+    
+    // 各环节比例（基于历史数据）
+    const unloadRatio = 0.25;
+    const packageRatio = 0.35;
+    
+    let staff = Math.round(baseTotal * weight);
+    
+    // 确保最小人数
+    if (staff < 30) staff = 30;
+    
+    const unload = Math.round(staff * unloadRatio);
+    const packageCount = Math.round(staff * packageRatio);
+    const totalLoopStaff = staff - unload - packageCount;
+    const northLoop = Math.round(totalLoopStaff * 0.65);
+    const southLoop = Math.round(totalLoopStaff * 0.35);
+    const express = 4;
+    
+    // 复用规则：卸车人员可复用去环线（高峰时段）
+    const reused = slot.includes('1200') || slot.includes('1300') || slot.includes('1400') || slot.includes('0800')
+      ? Math.round(unload * 0.2)
+      : 0;
+    
+    result[slot] = {
+      unload: unload - reused,
+      package: packageCount,
+      northLoop: northLoop + Math.round(reused * 0.7),
+      southLoop: southLoop + Math.round(reused * 0.3),
+      express,
+      reused
+    };
+  });
+  
+  return result;
+}
 
 // ============ 计算数据 ============
 function calculateData(
   uploadedData: UploadedData[],
-  staffConfig: Record<string, StaffAllocation>,
-  otherCostConfig: Record<'white' | 'night', number> = DEFAULT_OTHER_COST
+  staffConfig: Record<string, { unload: number; package: number; northLoop: number; southLoop: number; express: number; reused: number }>
 ): CalculatedData[] {
   return uploadedData.map(data => {
     const staff = staffConfig[data.timeSlot] || { unload: 0, package: 0, northLoop: 0, southLoop: 0, express: 0, reused: 0 };
@@ -188,36 +172,26 @@ function calculateData(
     const totalLoopStaff = staff.northLoop + staff.southLoop;
     const totalStaff = staff.unload + staff.package + totalLoopStaff;
     
-    // 人效 = 业务量 / 人数
     const unloadEfficiency = staff.unload > 0 ? data.unloadCount / staff.unload : 0;
     const packageEfficiency = staff.package > 0 ? data.packageCount / staff.package : 0;
     const loopEfficiency = totalLoop > 0 && totalLoopStaff > 0 ? totalLoop / totalLoopStaff : 0;
     
-    // 【核心公式】收入计算
-    const unloadRevenue = data.unloadCount * REVENUE_PRICE.unload;  // = 0
+    const unloadRevenue = 0;
     const packageRevenue = data.packageCount * REVENUE_PRICE.package;
     const loopRevenue = totalLoop * REVENUE_PRICE.loop;
     
-    // 【核心公式】薪资计算 = 基准薪资 + (人数 - 基准人数) × 增量单价
     const unloadSalary = calculateSalary(staff.unload, SALARY_CONFIG.unload[shiftType]);
     const packageSalary = calculateSalary(staff.package, SALARY_CONFIG.package[shiftType]);
     const loopSalary = calculateSalary(totalLoopStaff, SALARY_CONFIG.loop[shiftType]);
     
-    // 各环节盈亏 = 收入 - 薪资
     const unloadProfit = unloadRevenue - unloadSalary;
     const packageProfit = packageRevenue - packageSalary;
     const loopProfit = loopRevenue - loopSalary;
     
-    // 其他成本（场地、设备等固定成本分摊，用户可配置）
-    const otherCost = otherCostConfig[shiftType];
-    
-    // 管理薪资
+    const otherCost = DEFAULT_OTHER_COST[shiftType];
     const managerSalary = MANAGER_SALARY[shiftType];
-    
-    // 【核心公式】总盈亏 = 各环节盈亏 - 管理薪资 - 其他成本
     const totalProfit = unloadProfit + packageProfit + loopProfit - managerSalary - otherCost;
     
-    // 总收入和总薪资
     const totalRevenue = unloadRevenue + packageRevenue + loopRevenue;
     const totalSalary = unloadSalary + packageSalary + loopSalary + managerSalary;
     
@@ -247,22 +221,53 @@ function calculateData(
   });
 }
 
+// ============ 日期解析 ============
+function parseDate(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'number') {
+    const date = new Date((value - 25569) * 86400 * 1000);
+    return format(date, 'yyyy-MM-dd');
+  }
+  if (typeof value === 'string') {
+    const formats = ['yyyy/MM/dd', 'yyyy-M-d', 'd-MMM-yyyy', 'MM/dd/yyyy', 'yyyy.MM.dd'];
+    for (const fmt of formats) {
+      try {
+        const parsed = parse(value, fmt, new Date());
+        if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
+      } catch {}
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  }
+  return String(value);
+}
+
 // ============ 主组件 ============
 export default function SmartPerformanceDashboard() {
   const [uploadedData, setUploadedData] = useState<UploadedData[]>([]);
   const [calculatedData, setCalculatedData] = useState<CalculatedData[]>([]);
-  const [staffConfig, setStaffConfig] = useState<Record<string, StaffAllocation>>(DEFAULT_STAFF_CONFIG);
+  const [staffConfig, setStaffConfig] = useState<Record<string, { unload: number; package: number; northLoop: number; southLoop: number; express: number; reused: number }>>({});
   const [selectedDate, setSelectedDate] = useState<string>('all');
   const [selectedShift, setSelectedShift] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
-  const [editingSlot, setEditingSlot] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [otherCostConfig, setOtherCostConfig] = useState(DEFAULT_OTHER_COST);
   
-  // 计算数据（传入其他成本配置）
+  // 班次人数配置
+  const [whiteStaffCount, setWhiteStaffCount] = useState(70);
+  const [nightStaffCount, setNightStaffCount] = useState(95);
+  
+  // 智能分配
   useEffect(() => {
     if (uploadedData.length > 0) {
-      const calculated = calculateData(uploadedData, staffConfig, otherCostConfig);
+      const allocated = smartAllocate(whiteStaffCount, nightStaffCount, uploadedData);
+      setStaffConfig(allocated);
+    }
+  }, [uploadedData, whiteStaffCount, nightStaffCount]);
+  
+  // 计算数据
+  useEffect(() => {
+    if (uploadedData.length > 0 && Object.keys(staffConfig).length > 0) {
+      const calculated = calculateData(uploadedData, staffConfig);
       setCalculatedData(calculated);
     }
   }, [uploadedData, staffConfig, otherCostConfig]);
@@ -294,19 +299,15 @@ export default function SmartPerformanceDashboard() {
   }, [filteredData]);
   
   // 图表数据
-  const trendData = useMemo(() => filteredData.map(d => ({
-    name: d.timeSlot, 卸车: d.unloadCount, 集包: d.packageCount, 环线: d.loopCount
-  })), [filteredData]);
-  
   const pieData = useMemo(() => [
     { name: '卸车', value: stats.totalUnload, color: COLORS[0] },
     { name: '集包', value: stats.totalPackage, color: COLORS[1] },
     { name: '环线', value: stats.totalLoop, color: COLORS[2] }
   ], [stats]);
   
-  const staffChartData = useMemo(() => filteredData.map(d => ({
+  const trendData = useMemo(() => filteredData.map(d => ({
     name: d.timeSlot,
-    卸车: d.unloadStaff, 集包: d.packageStaff, 北环: d.northLoop, 南环: d.southLoop, 复用: d.reusedStaff
+    卸车: d.unloadCount, 集包: d.packageCount, 环线: d.loopCount
   })), [filteredData]);
   
   const profitData = useMemo(() => filteredData.map(d => ({
@@ -371,6 +372,7 @@ export default function SmartPerformanceDashboard() {
       '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
       '卸车量': d.unloadCount, '集包量': d.packageCount, '环线量': d.loopCount,
       '卸车人数': d.unloadStaff, '集包人数': d.packageStaff, '北环人数': d.northLoopStaff, '南环人数': d.southLoopStaff, '复用人数': d.reusedStaff,
+      '卸车人效': Math.round(d.unloadEfficiency), '集包人效': Math.round(d.packageEfficiency), '环线人效': Math.round(d.loopEfficiency),
       '总收入': d.totalRevenue.toFixed(2), '总薪资': d.totalSalary.toFixed(2), '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -380,32 +382,11 @@ export default function SmartPerformanceDashboard() {
     setNotification({ type: 'success', message: '导出成功' });
   };
   
-  // 更新排班
-  const updateSlotStaff = (slot: string, field: keyof StaffAllocation, value: number) => {
-    setStaffConfig(prev => ({
-      ...prev,
-      [slot]: { ...prev[slot], [field]: Math.max(0, value) }
-    }));
-  };
-  
-  // 应用到所有时段
-  const applyToAll = (type: 'white' | 'night' | 'all') => {
-    const ranges = type === 'white' ? WHITE_RANGES : type === 'night' ? NIGHT_RANGES : TIME_RANGES;
-    ranges.forEach(slot => {
-      if (staffConfig[slot]) {
-        setStaffConfig(prev => ({
-          ...prev,
-          [slot]: { ...DEFAULT_STAFF_CONFIG[slot] }
-        }));
-      }
-    });
-    setNotification({ type: 'success', message: '已应用默认配置' });
-  };
-  
   // 清除
   const clearData = () => {
     setUploadedData([]);
     setCalculatedData([]);
+    setStaffConfig({});
     setNotification({ type: 'success', message: '数据已清除' });
   };
   
@@ -435,7 +416,7 @@ export default function SmartPerformanceDashboard() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                 智能物流排班系统
               </h1>
-              <p className="text-sm text-slate-500 mt-1">灵活配置各时段人员，支持复用规则</p>
+              <p className="text-sm text-slate-500 mt-1">输入班次人数，自动智能分配各环节人员</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-2" />模板</Button>
@@ -460,166 +441,141 @@ export default function SmartPerformanceDashboard() {
               </label>
               <div className="text-sm text-slate-600">
                 <p className="font-medium">表头：日期 | 时段 | 卸车量 | 集包量 | 环线量</p>
-                <p className="text-xs mt-1">支持多种日期格式</p>
+                <p className="text-xs mt-1">上传数据后，输入白班/夜班总人数，系统自动分配</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        {/* 排班配置 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2"><Settings2 className="w-5 h-5 text-blue-500" />时段人员配置</span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => applyToAll('white')}>应用白班配置</Button>
-                <Button size="sm" variant="outline" onClick={() => applyToAll('night')}>应用夜班配置</Button>
-                <Button size="sm" variant="outline" onClick={() => applyToAll('all')}>应用全部</Button>
+        {/* 班次人数配置 */}
+        {uploadedData.length > 0 && (
+          <Card className="border-2 border-green-200 bg-green-50/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-600" />
+                班次人数配置（系统根据业务量自动分配到各环节）
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex items-center gap-4 p-4 bg-white rounded-lg border">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                    <span className="text-xl">☀️</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-500">白班总人数</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        className="w-24"
+                        value={whiteStaffCount}
+                        onChange={e => setWhiteStaffCount(Math.max(0, Number(e.target.value) || 0))}
+                      />
+                      <span className="text-sm text-slate-400">人（07:00-18:00）</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 p-4 bg-white rounded-lg border">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
+                    <span className="text-xl">🌙</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-500">夜班总人数</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        className="w-24"
+                        value={nightStaffCount}
+                        onChange={e => setNightStaffCount(Math.max(0, Number(e.target.value) || 0))}
+                      />
+                      <span className="text-sm text-slate-400">人（18:00-07:00）</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 p-4 bg-white rounded-lg border">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Calculator className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-500">智能分配结果</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs">卸车 {Math.round(whiteStaffCount * 0.25)} / {Math.round(nightStaffCount * 0.25)}</Badge>
+                      <Badge variant="outline" className="text-xs">集包 {Math.round(whiteStaffCount * 0.35)} / {Math.round(nightStaffCount * 0.35)}</Badge>
+                      <Badge variant="outline" className="text-xs">环线 {Math.round(whiteStaffCount * 0.40)} / {Math.round(nightStaffCount * 0.40)}</Badge>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-blue-500" /><span>卸车</span>
+              
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                <p className="font-medium">智能分配规则：</p>
+                <ul className="list-disc list-inside mt-1 space-y-1">
+                  <li>根据各时段业务量占比自动分配人数</li>
+                  <li>高峰时段（08:00-14:00）自动增加人员并启用复用机制</li>
+                  <li>卸车人员可复用至环线环节</li>
+                  <li>各环节比例：卸车25%、集包35%、环线40%</li>
+                </ul>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-emerald-500" /><span>集包</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-amber-500" /><span>北环</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-orange-500" /><span>南环</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-purple-500" /><span>特快</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-slate-400" /><span>复用</span>
-              </div>
-            </div>
-            <div className="overflow-x-auto max-h-[400px]">
-              <Table>
-                <TableHeader className="sticky top-0 bg-slate-50">
-                  <TableRow>
-                    <TableHead className="w-[100px]">时段</TableHead>
-                    <TableHead className="text-center">班次</TableHead>
-                    <TableHead className="text-center">卸车</TableHead>
-                    <TableHead className="text-center">集包</TableHead>
-                    <TableHead className="text-center">北环</TableHead>
-                    <TableHead className="text-center">南环</TableHead>
-                    <TableHead className="text-center">特快</TableHead>
-                    <TableHead className="text-center">复用</TableHead>
-                    <TableHead className="text-center">小计</TableHead>
-                    <TableHead className="w-[80px]">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {TIME_RANGES.map(slot => {
-                    const staff = staffConfig[slot] || { unload: 0, package: 0, northLoop: 0, southLoop: 0, express: 0, reused: 0 };
-                    const isWhite = WHITE_RANGES.includes(slot);
-                    const total = staff.unload + staff.package + staff.northLoop + staff.southLoop + staff.express;
-                    
-                    return (
-                      <TableRow key={slot} className={editingSlot === slot ? 'bg-blue-50' : ''}>
-                        <TableCell className="font-medium">{slot}</TableCell>
-                        <TableCell><Badge variant={isWhite ? 'default' : 'outline'}>{isWhite ? '白班' : '夜班'}</Badge></TableCell>
-                        <TableCell className="text-center">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.unload} onChange={e => updateSlotStaff(slot, 'unload', +e.target.value)} />
-                          ) : staff.unload}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.package} onChange={e => updateSlotStaff(slot, 'package', +e.target.value)} />
-                          ) : staff.package}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.northLoop} onChange={e => updateSlotStaff(slot, 'northLoop', +e.target.value)} />
-                          ) : staff.northLoop}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.southLoop} onChange={e => updateSlotStaff(slot, 'southLoop', +e.target.value)} />
-                          ) : staff.southLoop}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.express} onChange={e => updateSlotStaff(slot, 'express', +e.target.value)} />
-                          ) : staff.express}
-                        </TableCell>
-                        <TableCell className="text-center text-slate-500">
-                          {editingSlot === slot ? (
-                            <Input type="number" className="w-16 h-8 text-center" value={staff.reused} onChange={e => updateSlotStaff(slot, 'reused', +e.target.value)} />
-                          ) : staff.reused}
-                        </TableCell>
-                        <TableCell className="text-center font-bold">{total}</TableCell>
-                        <TableCell>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingSlot(editingSlot === slot ? null : slot)}>
-                            <Edit3 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         
         {/* 其他成本配置 */}
-        <Card className="border-orange-200 bg-orange-50/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-orange-500" />
-              成本配置（其他成本按天变化，请根据实际情况调整）
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600">白班其他成本：</span>
-                <Input
-                  type="number"
-                  className="w-24 h-8"
-                  value={otherCostConfig.white}
-                  onChange={e => setOtherCostConfig(prev => ({ ...prev, white: Number(e.target.value) || 0 }))}
-                />
-                <span className="text-xs text-slate-400">元/时段（含管理100.75元）</span>
+        {uploadedData.length > 0 && (
+          <Card className="border-orange-200 bg-orange-50/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-orange-500" />
+                成本配置（其他成本按天变化，请根据实际情况调整）
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">白班其他成本：</span>
+                  <Input
+                    type="number"
+                    className="w-24 h-8"
+                    value={otherCostConfig.white}
+                    onChange={e => setOtherCostConfig(prev => ({ ...prev, white: Number(e.target.value) || 0 }))}
+                  />
+                  <span className="text-xs text-slate-400">元/时段</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">夜班其他成本：</span>
+                  <Input
+                    type="number"
+                    className="w-24 h-8"
+                    value={otherCostConfig.night}
+                    onChange={e => setOtherCostConfig(prev => ({ ...prev, night: Number(e.target.value) || 0 }))}
+                  />
+                  <span className="text-xs text-slate-400">元/时段</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setOtherCostConfig(DEFAULT_OTHER_COST)}>
+                  恢复默认
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600">夜班其他成本：</span>
-                <Input
-                  type="number"
-                  className="w-24 h-8"
-                  value={otherCostConfig.night}
-                  onChange={e => setOtherCostConfig(prev => ({ ...prev, night: Number(e.target.value) || 0 }))}
-                />
-                <span className="text-xs text-slate-400">元/时段（含管理44.01元）</span>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setOtherCostConfig(DEFAULT_OTHER_COST)}>
-                恢复默认
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white"><CardContent className="p-3"><p className="text-blue-100 text-xs">卸车总量</p><p className="text-xl font-bold">{stats.totalUnload.toLocaleString()}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"><CardContent className="p-3"><p className="text-emerald-100 text-xs">集包总量</p><p className="text-xl font-bold">{stats.totalPackage.toLocaleString()}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white"><CardContent className="p-3"><p className="text-amber-100 text-xs">环线总量</p><p className="text-xl font-bold">{stats.totalLoop.toLocaleString()}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"><CardContent className="p-3"><p className="text-cyan-100 text-xs">总人数</p><p className="text-xl font-bold">{stats.totalStaff}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-violet-500 to-violet-600 text-white"><CardContent className="p-3"><p className="text-violet-100 text-xs">平均人效</p><p className="text-xl font-bold">{Math.round(stats.avgEff)}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white"><CardContent className="p-3"><p className="text-teal-100 text-xs">总收入</p><p className="text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p></CardContent></Card>
-          <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white"><CardContent className="p-3"><p className="text-rose-100 text-xs">总薪资</p><p className="text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p></CardContent></Card>
-          <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} text-white`}>
-            <CardContent className="p-3"><p className="text-white/80 text-xs">总利润</p><p className="text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p></CardContent>
-          </Card>
-        </div>
+        {uploadedData.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white"><CardContent className="p-3"><p className="text-blue-100 text-xs">卸车总量</p><p className="text-xl font-bold">{stats.totalUnload.toLocaleString()}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"><CardContent className="p-3"><p className="text-emerald-100 text-xs">集包总量</p><p className="text-xl font-bold">{stats.totalPackage.toLocaleString()}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white"><CardContent className="p-3"><p className="text-amber-100 text-xs">环线总量</p><p className="text-xl font-bold">{stats.totalLoop.toLocaleString()}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"><CardContent className="p-3"><p className="text-cyan-100 text-xs">总人数</p><p className="text-xl font-bold">{stats.totalStaff}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-violet-500 to-violet-600 text-white"><CardContent className="p-3"><p className="text-violet-100 text-xs">平均人效</p><p className="text-xl font-bold">{Math.round(stats.avgEff)}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white"><CardContent className="p-3"><p className="text-teal-100 text-xs">总收入</p><p className="text-xl font-bold">¥{Math.round(stats.totalRevenue).toLocaleString()}</p></CardContent></Card>
+            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white"><CardContent className="p-3"><p className="text-rose-100 text-xs">总薪资</p><p className="text-xl font-bold">¥{Math.round(stats.totalSalary).toLocaleString()}</p></CardContent></Card>
+            <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} text-white`}>
+              <CardContent className="p-3"><p className="text-white/80 text-xs">总利润</p><p className="text-xl font-bold">¥{Math.round(stats.totalProfit).toLocaleString()}</p></CardContent>
+            </Card>
+          </div>
+        )}
         
         {/* 日期筛选 */}
         {uploadedData.length > 0 && (
@@ -637,102 +593,131 @@ export default function SmartPerformanceDashboard() {
                     {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Badge variant="secondary">共 {availableDates.length} 天</Badge>
+                <Select value={selectedShift} onValueChange={setSelectedShift}>
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部班次</SelectItem>
+                    <SelectItem value="白班">白班</SelectItem>
+                    <SelectItem value="夜班">夜班</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Badge>{filteredData.length}条</Badge>
               </div>
             </CardContent>
           </Card>
         )}
         
         {/* 图表 */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full">
-            <TabsTrigger value="overview">总览</TabsTrigger>
-            <TabsTrigger value="trend">趋势</TabsTrigger>
-            <TabsTrigger value="staff">人员</TabsTrigger>
-            <TabsTrigger value="profit">盈亏</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card><CardHeader><CardTitle className="flex items-center gap-2"><PieChartIcon className="w-5 h-5" />业务量占比</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(1)}%`}>{pieData.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip formatter={(v: number) => v.toLocaleString()} /><Legend /></PieChart></ResponsiveContainer></div></CardContent></Card>
-              <Card><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5" />效能指标</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill="#3b82f6" /></BarChart></ResponsiveContainer></div></CardContent></Card>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="trend">
-            <Card><CardHeader><CardTitle>业务量趋势</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><AreaChart data={trendData}><defs><linearGradient id="gu" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} /><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} /></linearGradient><linearGradient id="ji" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.8} /><stop offset="95%" stopColor="#10b981" stopOpacity={0.1} /></linearGradient><linearGradient id="hu" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} /><stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Legend /><Area type="monotone" dataKey="卸车" stroke="#3b82f6" fill="url(#gu)" /><Area type="monotone" dataKey="集包" stroke="#10b981" fill="url(#ji)" /><Area type="monotone" dataKey="环线" stroke="#f59e0b" fill="url(#hu)" /></AreaChart></ResponsiveContainer></div></CardContent></Card>
-          </TabsContent>
-          
-          <TabsContent value="staff">
-            <Card><CardHeader><CardTitle>人员配置</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><BarChart data={staffChartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Legend /><Bar dataKey="卸车" stackId="a" fill="#3b82f6" /><Bar dataKey="集包" stackId="a" fill="#10b981" /><Bar dataKey="北环" stackId="a" fill="#f59e0b" /><Bar dataKey="南环" stackId="a" fill="#f97316" /><Bar dataKey="复用" stackId="a" fill="#94a3b8" /></BarChart></ResponsiveContainer></div></CardContent></Card>
-          </TabsContent>
-          
-          <TabsContent value="profit">
-            <Card><CardHeader><CardTitle>盈亏分析</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill={profitData.some(d => d.利润 < 0) ? '#ef4444' : '#3b82f6'} /></BarChart></ResponsiveContainer></div></CardContent></Card>
-          </TabsContent>
-        </Tabs>
+        {uploadedData.length > 0 && (
+          <Tabs defaultValue="overview" className="space-y-4">
+            <TabsList className="grid grid-cols-4 w-full">
+              <TabsTrigger value="overview">总览</TabsTrigger>
+              <TabsTrigger value="trend">趋势</TabsTrigger>
+              <TabsTrigger value="detail">明细</TabsTrigger>
+              <TabsTrigger value="profit">盈亏</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card><CardHeader><CardTitle className="flex items-center gap-2">📊 业务量占比</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(1)}%`}>{pieData.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip formatter={(v: number) => v.toLocaleString()} /><Legend /></PieChart></ResponsiveContainer></div></CardContent></Card>
+                <Card><CardHeader><CardTitle className="flex items-center gap-2">💰 效能指标</CardTitle></CardHeader><CardContent><div className="h-[300px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill="#3b82f6" /></BarChart></ResponsiveContainer></div></CardContent></Card>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="trend">
+              <Card><CardHeader><CardTitle>业务量趋势</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><AreaChart data={trendData}><defs><linearGradient id="gu" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} /><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} /></linearGradient><linearGradient id="ji" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.8} /><stop offset="95%" stopColor="#10b981" stopOpacity={0.1} /></linearGradient><linearGradient id="hu" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} /><stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Legend /><Area type="monotone" dataKey="卸车" stroke="#3b82f6" fill="url(#gu)" /><Area type="monotone" dataKey="集包" stroke="#10b981" fill="url(#ji)" /><Area type="monotone" dataKey="环线" stroke="#f59e0b" fill="url(#hu)" /></AreaChart></ResponsiveContainer></div></CardContent></Card>
+            </TabsContent>
+            
+            <TabsContent value="detail">
+              <Card><CardHeader><CardTitle>人员配置明细</CardTitle></CardHeader><CardContent>
+                <div className="overflow-x-auto max-h-[400px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50">
+                      <TableRow>
+                        <TableHead>时段</TableHead><TableHead>班次</TableHead>
+                        <TableHead className="text-right">卸车量</TableHead><TableHead className="text-right">卸车人</TableHead><TableHead className="text-right">卸车效</TableHead>
+                        <TableHead className="text-right">集包量</TableHead><TableHead className="text-right">集包人</TableHead><TableHead className="text-right">集包效</TableHead>
+                        <TableHead className="text-right">环线量</TableHead><TableHead className="text-right">环线人</TableHead><TableHead className="text-right">环线效</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredData.length === 0 ? (
+                        <TableRow><TableCell colSpan={12} className="text-center py-8">暂无数据</TableCell></TableRow>
+                      ) : filteredData.map((d, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{d.timeSlot}</TableCell>
+                          <TableCell><Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge></TableCell>
+                          <TableCell className="text-right">{d.unloadCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{d.unloadStaff}</TableCell>
+                          <TableCell className="text-right">{Math.round(d.unloadEfficiency)}</TableCell>
+                          <TableCell className="text-right">{d.packageCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{d.packageStaff}</TableCell>
+                          <TableCell className="text-right">{Math.round(d.packageEfficiency)}</TableCell>
+                          <TableCell className="text-right">{d.loopCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{d.northLoopStaff + d.southLoopStaff}</TableCell>
+                          <TableCell className="text-right">{Math.round(d.loopEfficiency)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent></Card>
+            </TabsContent>
+            
+            <TabsContent value="profit">
+              <Card><CardHeader><CardTitle>盈亏分析</CardTitle></CardHeader><CardContent><div className="h-[400px]"><ResponsiveContainer><BarChart data={profitData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip formatter={(v: number) => `¥${v}`} /><Legend /><Bar dataKey="收入" fill="#10b981" /><Bar dataKey="薪资" fill="#f59e0b" /><Bar dataKey="利润" fill={profitData.some(d => d.利润 < 0) ? '#ef4444' : '#3b82f6'} /></BarChart></ResponsiveContainer></div></CardContent></Card>
+            </TabsContent>
+          </Tabs>
+        )}
         
         {/* 数据表格 */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="w-5 h-5" />数据明细</CardTitle>
-              <div className="flex items-center gap-2">
-                <Select value={selectedDate} onValueChange={setSelectedDate}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">全部日期</SelectItem>{availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-                </Select>
-                <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">全部</SelectItem><SelectItem value="白班">白班</SelectItem><SelectItem value="夜班">夜班</SelectItem></SelectContent>
-                </Select>
-                <Badge>{filteredData.length}条</Badge>
+        {uploadedData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="w-5 h-5" />完整数据</CardTitle>
+                <Badge variant="outline">总收入 ¥{Math.round(stats.totalRevenue).toLocaleString()} | 总薪资 ¥{Math.round(stats.totalSalary).toLocaleString()} | 利润 <span className={getColor(stats.totalProfit)}>¥{Math.round(stats.totalProfit).toLocaleString()}</span></Badge>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto max-h-[500px]">
-              <Table>
-                <TableHeader className="sticky top-0 bg-slate-50">
-                  <TableRow>
-                    <TableHead>时段</TableHead><TableHead>班次</TableHead>
-                    <TableHead className="text-right">卸车量</TableHead><TableHead className="text-right">卸车人</TableHead><TableHead className="text-right">卸车效</TableHead>
-                    <TableHead className="text-right">集包量</TableHead><TableHead className="text-right">集包人</TableHead><TableHead className="text-right">集包效</TableHead>
-                    <TableHead className="text-right">环线量</TableHead><TableHead className="text-right">环线人</TableHead><TableHead className="text-right">环线效</TableHead>
-                    <TableHead className="text-right">收入</TableHead><TableHead className="text-right">薪资</TableHead><TableHead className="text-right">利润</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredData.length === 0 ? (
-                    <TableRow><TableCell colSpan={14} className="text-center py-8">暂无数据</TableCell></TableRow>
-                  ) : filteredData.map((d, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{d.timeSlot}</TableCell>
-                      <TableCell><Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge></TableCell>
-                      <TableCell className="text-right">{d.unloadCount.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{d.unloadStaff}</TableCell>
-                      <TableCell className="text-right">{Math.round(d.unloadEfficiency)}</TableCell>
-                      <TableCell className="text-right">{d.packageCount.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{d.packageStaff}</TableCell>
-                      <TableCell className="text-right">{Math.round(d.packageEfficiency)}</TableCell>
-                      <TableCell className="text-right">{d.loopCount.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{d.northLoopStaff + d.southLoopStaff}</TableCell>
-                      <TableCell className="text-right">{Math.round(d.loopEfficiency)}</TableCell>
-                      <TableCell className="text-right">¥{Math.round(d.totalRevenue)}</TableCell>
-                      <TableCell className="text-right">¥{Math.round(d.totalSalary)}</TableCell>
-                      <TableCell className={`text-right font-bold ${getColor(d.totalProfit)}`}>¥{Math.round(d.totalProfit)}</TableCell>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto max-h-[500px]">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-slate-50">
+                    <TableRow>
+                      <TableHead>时段</TableHead><TableHead>班次</TableHead>
+                      <TableHead className="text-right">卸车</TableHead><TableHead className="text-right">集包</TableHead><TableHead className="text-right">环线</TableHead>
+                      <TableHead className="text-right">复用</TableHead><TableHead className="text-right">小计</TableHead>
+                      <TableHead className="text-right">收入</TableHead><TableHead className="text-right">薪资</TableHead><TableHead className="text-right">利润</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.length === 0 ? (
+                      <TableRow><TableCell colSpan={10} className="text-center py-8">暂无数据</TableCell></TableRow>
+                    ) : filteredData.map((d, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{d.timeSlot}</TableCell>
+                        <TableCell><Badge variant={d.shift === '白班' ? 'default' : 'outline'}>{d.shift}</Badge></TableCell>
+                        <TableCell className="text-right">{d.unloadStaff}</TableCell>
+                        <TableCell className="text-right">{d.packageStaff}</TableCell>
+                        <TableCell className="text-right">{d.northLoopStaff + d.southLoopStaff}</TableCell>
+                        <TableCell className="text-right text-slate-400">{d.reusedStaff > 0 ? `+${d.reusedStaff}` : '-'}</TableCell>
+                        <TableCell className="text-right font-bold">{d.totalStaff}</TableCell>
+                        <TableCell className="text-right">¥{Math.round(d.totalRevenue)}</TableCell>
+                        <TableCell className="text-right">¥{Math.round(d.totalSalary)}</TableCell>
+                        <TableCell className={`text-right font-bold ${getColor(d.totalProfit)}`}>¥{Math.round(d.totalProfit)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
       
       <footer className="border-t border-slate-200 bg-white/50 mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-slate-500">
-          智能物流排班系统 · 灵活配置各时段人员
+          智能物流排班系统 · 根据班次人数自动智能分配
         </div>
       </footer>
     </div>
