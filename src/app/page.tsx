@@ -130,19 +130,54 @@ function parseDate(value: unknown): string {
   return String(value);
 }
 
-// ============ 薪资计算 ============
-// 根据人数段计算单人薪资（参考模板数据）
-function getPerPersonSalary(count: number, shift: 'white' | 'night'): number {
-  if (count <= 5) return shift === 'white' ? 20 : 21;
-  if (count <= 10) return shift === 'white' ? 18 : 19;
-  if (count <= 20) return shift === 'white' ? 16.5 : 17;
-  return shift === 'white' ? 15.8 : 16;
+// ============ 薪资基准配置（根据Excel模板提取） ============
+interface SalaryBaseConfig {
+  baseCount: number;  // 基准人数
+  baseSalary: number; // 基准薪资
+  increment: number;   // 增量单价（元/人）
 }
+
+const SALARY_CONFIG: Record<string, Record<'white' | 'night', SalaryBaseConfig>> = {
+  unload: {
+    white: { baseCount: 8, baseSalary: 137.32, increment: 14.54 },
+    night: { baseCount: 17, baseSalary: 269.54, increment: 14.62 }
+  },
+  package: {
+    white: { baseCount: 21, baseSalary: 326.34, increment: 14.54 },
+    night: { baseCount: 25, baseSalary: 430.44, increment: 14.62 }
+  },
+  loop: {
+    white: { baseCount: 33, baseSalary: 521.82, increment: 14.54 },
+    night: { baseCount: 45, baseSalary: 743.84, increment: 14.62 }
+  }
+};
+
+// 管理薪资配置
+const MANAGER_SALARY = { white: 100.75, night: 44.01 };
+
+// ============ 收入单价（根据Excel模板精确提取） ============
+const REVENUE_PRICE = {
+  unload: 0,             // 卸车是成本中心，收入为0
+  package: 0.06447,      // 集包单价
+  loop: 0.25977          // 环线单价
+};
+
+// ============ 薪资计算 ============
+// 根据公式: 薪资 = 基准薪资 + (人数 - 基准人数) × 增量单价
+function calculateSalary(count: number, config: SalaryBaseConfig): number {
+  if (count === 0) return 0;
+  return config.baseSalary + (count - config.baseCount) * config.increment;
+}
+
+// ============ 其他成本配置（平均值） ============
+// 注意：其他成本（场地、设备等）按天变化，这里使用平均值作为默认值
+const DEFAULT_OTHER_COST = { white: 121, night: 167 };
 
 // ============ 计算数据 ============
 function calculateData(
   uploadedData: UploadedData[],
-  staffConfig: Record<string, StaffAllocation>
+  staffConfig: Record<string, StaffAllocation>,
+  otherCostConfig: Record<'white' | 'night', number> = DEFAULT_OTHER_COST
 ): CalculatedData[] {
   return uploadedData.map(data => {
     const staff = staffConfig[data.timeSlot] || { unload: 0, package: 0, northLoop: 0, southLoop: 0, express: 0, reused: 0 };
@@ -150,40 +185,41 @@ function calculateData(
     const shiftType = isWhiteShift ? 'white' : 'night';
     
     const totalLoop = data.loopCount;
-    const totalStaff = staff.unload + staff.package + staff.northLoop + staff.southLoop;
+    const totalLoopStaff = staff.northLoop + staff.southLoop;
+    const totalStaff = staff.unload + staff.package + totalLoopStaff;
     
     // 人效 = 业务量 / 人数
     const unloadEfficiency = staff.unload > 0 ? data.unloadCount / staff.unload : 0;
     const packageEfficiency = staff.package > 0 ? data.packageCount / staff.package : 0;
-    const loopEfficiency = totalLoop > 0 && (staff.northLoop + staff.southLoop) > 0 ? totalLoop / (staff.northLoop + staff.southLoop) : 0;
+    const loopEfficiency = totalLoop > 0 && totalLoopStaff > 0 ? totalLoop / totalLoopStaff : 0;
     
-    // 【关键修正】收入计算（根据模板）
-    // 卸车：收入 ≈ 0（卸车是成本中心，不产生直接收入）
-    const unloadRevenue = 0;
-    // 集包：收入 = 量 × 0.0645
-    const packageRevenue = data.packageCount * 0.0645;
-    // 环线：收入 = 量 × 0.2598
-    const loopRevenue = totalLoop * 0.2598;
+    // 【核心公式】收入计算
+    const unloadRevenue = data.unloadCount * REVENUE_PRICE.unload;  // = 0
+    const packageRevenue = data.packageCount * REVENUE_PRICE.package;
+    const loopRevenue = totalLoop * REVENUE_PRICE.loop;
     
-    // 薪资计算 = 人数 × 单人薪资
-    const unloadSalary = staff.unload * getPerPersonSalary(staff.unload, shiftType);
-    const packageSalary = staff.package * getPerPersonSalary(staff.package, shiftType);
-    const loopSalary = (staff.northLoop + staff.southLoop) * getPerPersonSalary(staff.northLoop + staff.southLoop, shiftType);
+    // 【核心公式】薪资计算 = 基准薪资 + (人数 - 基准人数) × 增量单价
+    const unloadSalary = calculateSalary(staff.unload, SALARY_CONFIG.unload[shiftType]);
+    const packageSalary = calculateSalary(staff.package, SALARY_CONFIG.package[shiftType]);
+    const loopSalary = calculateSalary(totalLoopStaff, SALARY_CONFIG.loop[shiftType]);
     
-    // 盈亏 = 收入 - 薪资
+    // 各环节盈亏 = 收入 - 薪资
     const unloadProfit = unloadRevenue - unloadSalary;
     const packageProfit = packageRevenue - packageSalary;
     const loopProfit = loopRevenue - loopSalary;
     
-    // 其他成本（场地、设备等固定成本分摊到每个时段）
-    const otherCost = isWhiteShift ? 150 : 180;
+    // 其他成本（场地、设备等固定成本分摊，用户可配置）
+    const otherCost = otherCostConfig[shiftType];
     
-    // 总盈亏 = 各环节盈亏 - 其他成本
-    const totalProfit = unloadProfit + packageProfit + loopProfit - otherCost;
+    // 管理薪资
+    const managerSalary = MANAGER_SALARY[shiftType];
+    
+    // 【核心公式】总盈亏 = 各环节盈亏 - 管理薪资 - 其他成本
+    const totalProfit = unloadProfit + packageProfit + loopProfit - managerSalary - otherCost;
     
     // 总收入和总薪资
     const totalRevenue = unloadRevenue + packageRevenue + loopRevenue;
-    const totalSalary = unloadSalary + packageSalary + loopSalary;
+    const totalSalary = unloadSalary + packageSalary + loopSalary + managerSalary;
     
     return {
       ...data,
@@ -221,14 +257,15 @@ export default function SmartPerformanceDashboard() {
   const [uploading, setUploading] = useState(false);
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [otherCostConfig, setOtherCostConfig] = useState(DEFAULT_OTHER_COST);
   
-  // 计算数据
+  // 计算数据（传入其他成本配置）
   useEffect(() => {
     if (uploadedData.length > 0) {
-      const calculated = calculateData(uploadedData, staffConfig);
+      const calculated = calculateData(uploadedData, staffConfig, otherCostConfig);
       setCalculatedData(calculated);
     }
-  }, [uploadedData, staffConfig]);
+  }, [uploadedData, staffConfig, otherCostConfig]);
   
   // 筛选
   const filteredData = useMemo(() => {
@@ -528,6 +565,43 @@ export default function SmartPerformanceDashboard() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* 其他成本配置 */}
+        <Card className="border-orange-200 bg-orange-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-orange-500" />
+              成本配置（其他成本按天变化，请根据实际情况调整）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">白班其他成本：</span>
+                <Input
+                  type="number"
+                  className="w-24 h-8"
+                  value={otherCostConfig.white}
+                  onChange={e => setOtherCostConfig(prev => ({ ...prev, white: Number(e.target.value) || 0 }))}
+                />
+                <span className="text-xs text-slate-400">元/时段（含管理100.75元）</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">夜班其他成本：</span>
+                <Input
+                  type="number"
+                  className="w-24 h-8"
+                  value={otherCostConfig.night}
+                  onChange={e => setOtherCostConfig(prev => ({ ...prev, night: Number(e.target.value) || 0 }))}
+                />
+                <span className="text-xs text-slate-400">元/时段（含管理44.01元）</span>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setOtherCostConfig(DEFAULT_OTHER_COST)}>
+                恢复默认
+              </Button>
             </div>
           </CardContent>
         </Card>
