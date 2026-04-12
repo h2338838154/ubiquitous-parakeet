@@ -117,7 +117,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   }
 }
 
-// 班次配置（按日期存储，存到 localStorage）
+// 班次配置（按日期存储）
 export interface DailyStaffConfig {
   [date: string]: {
     white: number;
@@ -134,12 +134,83 @@ export interface ShiftConfig {
   night: number;
 }
 
+interface ShiftConfigRow {
+  date: string;
+  white: number;
+  middle: number;
+  night: number;
+}
+
+// 保存班次配置到 localStorage
 export function saveShiftConfig(config: ShiftConfig): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('shift_config', JSON.stringify(config));
   }
 }
 
+// 保存班次配置到云端
+export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) {
+    return { success: false, error: '云端连接不可用' };
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('shift_configs')
+      .upsert({
+        date: config.date,
+        config_data: config.configs,
+        white: config.white,
+        middle: config.middle,
+        night: config.night,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'date' });
+    
+    if (error) {
+      console.error('Save shift config error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Save shift config error:', err);
+    return { success: false, error: '保存班次配置失败' };
+  }
+}
+
+// 批量保存所有班次配置到云端
+export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) {
+    return { success: false, error: '云端连接不可用' };
+  }
+  
+  try {
+    const records = Object.entries(configs).map(([date, config]) => ({
+      date,
+      config_data: config,
+      white: config.white,
+      middle: config.middle,
+      night: config.night,
+      updated_at: new Date().toISOString()
+    }));
+    
+    for (const record of records) {
+      const { error } = await supabase
+        .from('shift_configs')
+        .upsert(record, { onConflict: 'date' });
+      
+      if (error) {
+        console.error('Save shift config error:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Save shift config error:', err);
+    return { success: false, error: '保存班次配置失败' };
+  }
+}
+
+// 加载班次配置
 export function loadShiftConfig(): { data: ShiftConfig | null } {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('shift_config');
@@ -148,6 +219,41 @@ export function loadShiftConfig(): { data: ShiftConfig | null } {
     }
   }
   return { data: null };
+}
+
+// 从云端加载班次配置
+export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
+  if (!supabase) {
+    return { data: null, error: '云端连接不可用' };
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('shift_configs')
+      .select('*')
+      .order('date', { ascending: true });
+    
+    if (error) {
+      console.error('Load shift config error:', error);
+      return { data: null, error: error.message };
+    }
+    
+    if (data && data.length > 0) {
+      const configs: DailyStaffConfig = {};
+      data.forEach((row: ShiftConfigRow) => {
+        configs[row.date] = {
+          white: row.white ?? 70,
+          middle: row.middle ?? 0,
+          night: row.night ?? 95
+        };
+      });
+      return { data: configs };
+    }
+    return { data: null };
+  } catch (err) {
+    console.error('Load shift config error:', err);
+    return { data: null, error: '加载班次配置失败' };
+  }
 }
 
 // 清除数据
