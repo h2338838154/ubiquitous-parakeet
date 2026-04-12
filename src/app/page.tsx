@@ -885,544 +885,630 @@ export default function SmartPerformanceDashboard() {
           </CardContent>
         </Card>
         
-        {/* Tab切换按钮 */}
+        {/* 左侧Tab导航 + 筛选 + 内容区域 */}
         {uploadedData.length > 0 && (
-          <Card className="bg-white shadow-lg border-0">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-center gap-2 sm:gap-4">
-                <Button
-                  variant={activeTab === 'config' ? 'default' : 'outline'}
+          <div className="flex gap-4">
+            {/* 左侧Tab导航 - 竖向排列 */}
+            <Card className="w-20 sm:w-24 flex-shrink-0 bg-gradient-to-b from-slate-800 to-slate-900 border-0 shadow-xl overflow-hidden">
+              <CardContent className="p-2 flex flex-col gap-2">
+                <button
                   onClick={() => setActiveTab('config')}
-                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'config' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'config' 
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg scale-105' 
+                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
                 >
-                  <Sliders className="w-4 h-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">班次配置</span>
-                  <span className="sm:hidden">配置</span>
-                </Button>
-                <Button
-                  variant={activeTab === 'daily' ? 'default' : 'outline'}
+                  <Sliders className="w-5 h-5" />
+                  <span className="text-xs font-medium">班次配置</span>
+                </button>
+                <button
                   onClick={() => setActiveTab('daily')}
-                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'daily' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'daily' 
+                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg scale-105' 
+                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
                 >
-                  <Calendar className="w-4 h-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">每日汇总</span>
-                  <span className="sm:hidden">汇总</span>
-                </Button>
-                <Button
-                  variant={activeTab === 'charts' ? 'default' : 'outline'}
+                  <Calendar className="w-5 h-5" />
+                  <span className="text-xs font-medium">每日汇总</span>
+                </button>
+                <button
                   onClick={() => setActiveTab('charts')}
-                  className={`flex-1 sm:flex-none sm:min-w-[100px] ${activeTab === 'charts' ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white' : ''}`}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'charts' 
+                      ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg scale-105' 
+                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
                 >
-                  <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">数据看板</span>
-                  <span className="sm:hidden">看板</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* 班次配置 - 仅config tab显示 */}
-        {uploadedData.length > 0 && activeTab === 'config' && (
-          <Card className="bg-white shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="w-5 h-5" />
-                班次配置
-                <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              {/* 日期选择 */}
-              <div className="flex items-center gap-3 mb-4 pb-3 border-b">
-                <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                <span className="font-medium text-slate-700 text-sm flex-shrink-0">配置日期</span>
-                <Select value={configDate} onValueChange={setConfigDate}>
-                  <SelectTrigger className="flex-1 min-w-0">
-                    <SelectValue placeholder="选择日期" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDates.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* 当前日期的班次配置 */}
-              <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold text-sm">白</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-700 text-sm">白班</p>
-                    <p className="text-xs text-slate-500 hidden sm:block">07:00-18:00</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      value={staffConfig[configDate]?.white ?? 70}
-                      onChange={e => setStaffConfig(s => ({
-                        ...s,
-                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
-                      }))}
-                      className="w-16 text-center font-bold bg-white"
-                    />
-                    <span className="text-slate-500 text-xs">人</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold text-sm">中</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-700 text-sm">中班</p>
-                    <p className="text-xs text-slate-500 hidden sm:block">可选</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      value={staffConfig[configDate]?.middle ?? 0}
-                      onChange={e => setStaffConfig(s => ({
-                        ...s,
-                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, middle: Number(e.target.value) || 0 }
-                      }))}
-                      className="w-16 text-center font-bold bg-white"
-                    />
-                    <span className="text-slate-500 text-xs">人</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 xs:col-span-2 md:col-span-1">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold text-sm">夜</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-700 text-sm">夜班</p>
-                    <p className="text-xs text-slate-500 hidden sm:block">18:00-07:00</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      value={staffConfig[configDate]?.night ?? 95}
-                      onChange={e => setStaffConfig(s => ({
-                        ...s,
-                        [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, night: Number(e.target.value) || 0 }
-                      }))}
-                      className="w-16 text-center font-bold bg-white"
-                    />
-                    <span className="text-slate-500 text-xs">人</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* 统计卡片 */}
-        {uploadedData.length > 0 && activeTab !== 'charts' && (
-          <div className="space-y-4">
-            {hasCloudData && (
-              <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200">
-                <Cloud className="w-4 h-4" />
-                <span>数据已保存到云端</span>
-              </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Truck className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
-                    <div className="min-w-0">
-                      <p className="text-blue-100 text-xs sm:text-sm">卸车量</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">{stats.totalUnload.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Package className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
-                    <div className="min-w-0">
-                      <p className="text-emerald-100 text-xs sm:text-sm">集包量</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">{stats.totalPackage.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
-                    <div className="min-w-0">
-                      <p className="text-amber-100 text-xs sm:text-sm">环线量</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">{stats.totalLoop.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
-                    <div className="min-w-0">
-                      <p className="text-teal-100 text-xs sm:text-sm">总收入</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
-                    <div className="min-w-0">
-                      <p className="text-rose-100 text-xs sm:text-sm">总薪资</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className={`shadow-lg ${stats.totalProfit >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-br from-red-500 to-rose-500 text-white'}`}>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    {stats.totalProfit >= 0 ? <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" /> : <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />}
-                    <div className="min-w-0">
-                      <p className="text-white/80 text-xs sm:text-sm">利润</p>
-                      <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-        
-        {/* 按天汇总 - 仅daily tab显示 */}
-        {uploadedData.length > 0 && activeTab === 'daily' && (
-          <Card className="bg-white shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="w-5 h-5" />
-                每日汇总
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {dailyStats.map(d => (
-                  <div key={d.date} className={`p-4 rounded-xl border-2 ${getBgColor(d.profit)}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-base text-slate-700">{d.date}</span>
-                      <Badge className={`text-xs ${d.profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}>
-                        {d.profit >= 0 ? '盈利' : '亏损'}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">收入</span>
-                        <span className="font-medium text-teal-600">¥{Math.round(d.revenue).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">薪资</span>
-                        <span className="font-medium text-rose-600">¥{Math.round(d.salary).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between pt-1.5 border-t">
-                        <span className="font-semibold text-slate-700">利润</span>
-                        <span className={`font-bold ${getColor(d.profit)}`}>¥{Math.round(d.profit).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* 筛选与数据管理 - config和daily tab显示 */}
-        {uploadedData.length > 0 && activeTab !== 'charts' && (
-          <Card className="bg-white shadow-lg border-0">
-            <CardContent className="p-3">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-slate-400" />
-                  <span className="font-medium text-slate-600 text-sm">筛选</span>
-                </div>
-                <Select value={selectedDate} onValueChange={setSelectedDate}>
-                  <SelectTrigger className="w-32 sm:w-40"><SelectValue placeholder="日期" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部日期</SelectItem>
-                    {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger className="w-28 sm:w-32"><SelectValue placeholder="班次" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部班次</SelectItem>
-                    <SelectItem value="白班">白班</SelectItem>
-                    <SelectItem value="中班">中班</SelectItem>
-                    <SelectItem value="夜班">夜班</SelectItem>
-                  </SelectContent>
-                </Select>
-                {/* 白班/夜班快捷筛选 */}
-                <div className="flex items-center gap-1 ml-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={`h-8 px-2 sm:px-3 text-xs ${selectedShift === '白班' ? 'bg-amber-100 border-amber-400 text-amber-700' : ''}`}
-                    onClick={() => setSelectedShift(selectedShift === '白班' ? 'all' : '白班')}
-                  >
-                    <Sun className="w-3 h-3 mr-1" />
-                    白
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={`h-8 px-2 sm:px-3 text-xs ${selectedShift === '夜班' ? 'bg-slate-800 border-slate-600 text-white' : ''}`}
-                    onClick={() => setSelectedShift(selectedShift === '夜班' ? 'all' : '夜班')}
-                  >
-                    <Moon className="w-3 h-3 mr-1" />
-                    夜
-                  </Button>
-                </div>
-                <Badge variant="outline" className="text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
-                
-                {/* 清除云端数据按钮 */}
-                {isCloudConnected && hasCloudData && (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="ml-auto border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
-                    onClick={clearCloudData}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    <span className="hidden sm:inline">清除云端数据</span>
-                    <span className="sm:hidden">清云端</span>
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* 图表区域 - 仅charts tab显示，两列布局 */}
-        {uploadedData.length > 0 && activeTab === 'charts' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* 左列 */}
-            <div className="space-y-4 sm:space-y-6">
-              {/* 业务量占比 */}
-              <Card className="bg-white shadow-xl border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4">
-                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                    <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-                    业务量占比
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                    <ResponsiveContainer>
-                      <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`} labelLine={false}>
-                          {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => v.toLocaleString()} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* 成本结构 - 折线图 */}
-              <Card className="bg-white shadow-xl border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 px-4">
-                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                    <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                    成本结构趋势
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                    <ResponsiveContainer>
-                      <LineChart data={revenueDetailData.slice(0, 12)}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 9 }} width={50} />
-                        <Tooltip formatter={(v: number) => `¥${v}`} />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Line type="monotone" dataKey="卸车成本" stroke={COLORS.unload} strokeWidth={2} dot={{ r: 3 }} />
-                        <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-                        <Line type="monotone" dataKey="其他成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* 收入明细趋势 */}
-              <Card className="bg-white shadow-xl border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white py-3 px-4">
-                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                    <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                    收入明细趋势
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                    <ResponsiveContainer>
-                      <LineChart data={revenueDetailData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 9 }} width={50} />
-                        <Tooltip formatter={(v: number) => `¥${v}`} />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
-                        <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  <BarChart3 className="w-5 h-5" />
+                  <span className="text-xs font-medium">数据看板</span>
+                </button>
+              </CardContent>
+            </Card>
             
-            {/* 右列 */}
-            <div className="space-y-4 sm:space-y-6">
-              {/* 利润趋势 */}
-              <Card className="bg-white shadow-xl border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-3 px-4">
-                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                    利润趋势
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                    <ResponsiveContainer>
-                      <AreaChart data={profitTrendData}>
-                        <defs>
-                          <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.4} />
-                            <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 9 }} width={50} />
-                        <Tooltip formatter={(v: number) => `¥${v}`} />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Area type="monotone" dataKey="利润" stroke={COLORS.success} fill="url(#colorProfit)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="收入" stroke={COLORS.primary} fill="url(#colorRevenue)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+            {/* 右侧内容区域 */}
+            <div className="flex-1 space-y-4 min-w-0">
+              {/* 班次配置 - 仅config tab显示 */}
+              {activeTab === 'config' && (
+                <>
+                  {/* 筛选区域 */}
+                  <Card className="bg-white shadow-lg border-0 overflow-hidden">
+                    <CardContent className="p-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                            <Calendar className="w-4 h-4 text-white" />
+                          </div>
+                          <span className="font-semibold text-slate-700 text-sm">筛选</span>
+                        </div>
+                        <Select value={selectedDate} onValueChange={setSelectedDate}>
+                          <SelectTrigger className="w-32 sm:w-40 bg-slate-50 border-slate-200">
+                            <SelectValue placeholder="日期" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部日期</SelectItem>
+                            {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={selectedShift} onValueChange={setSelectedShift}>
+                          <SelectTrigger className="w-28 sm:w-32 bg-slate-50 border-slate-200">
+                            <SelectValue placeholder="班次" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部班次</SelectItem>
+                            <SelectItem value="白班">白班</SelectItem>
+                            <SelectItem value="中班">中班</SelectItem>
+                            <SelectItem value="夜班">夜班</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {/* 白班/夜班快捷筛选 */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setSelectedShift(selectedShift === '白班' ? 'all' : '白班')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                              selectedShift === '白班' 
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-md' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-amber-100'
+                            }`}
+                          >
+                            <Sun className="w-3.5 h-3.5" />
+                            白班
+                          </button>
+                          <button
+                            onClick={() => setSelectedShift(selectedShift === '夜班' ? 'all' : '夜班')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                              selectedShift === '夜班' 
+                                ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            <Moon className="w-3.5 h-3.5" />
+                            夜班
+                          </button>
+                        </div>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
+                        
+                        {/* 清除云端数据按钮 */}
+                        {isCloudConnected && hasCloudData && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="ml-auto border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            <span className="hidden sm:inline">清除云端</span>
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* 班次配置卡片 */}
+                  <Card className="bg-white shadow-lg border-0">
+                    <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-t-xl py-3 px-4">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Users className="w-5 h-5" />
+                        班次配置
+                        <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      {/* 日期选择 */}
+                      <div className="flex items-center gap-3 mb-4 pb-3 border-b">
+                        <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                        <span className="font-medium text-slate-700 text-sm flex-shrink-0">配置日期</span>
+                        <Select value={configDate} onValueChange={setConfigDate}>
+                          <SelectTrigger className="flex-1 min-w-0">
+                            <SelectValue placeholder="选择日期" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableDates.map(d => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* 当前日期的班次配置 */}
+                      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-xl border border-amber-200">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                            <span className="text-white font-bold text-sm">白</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-700 text-sm">白班</p>
+                            <p className="text-xs text-slate-500 hidden sm:block">07:00-18:00</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={staffConfig[configDate]?.white ?? 70}
+                              onChange={e => setStaffConfig(s => ({
+                                ...s,
+                                [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
+                              }))}
+                              className="w-16 text-center font-bold bg-white border-amber-200"
+                            />
+                            <span className="text-slate-500 text-xs">人</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-50 to-green-100/50 rounded-xl border border-green-200">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                            <span className="text-white font-bold text-sm">中</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-700 text-sm">中班</p>
+                            <p className="text-xs text-slate-500 hidden sm:block">可选</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={staffConfig[configDate]?.middle ?? 0}
+                              onChange={e => setStaffConfig(s => ({
+                                ...s,
+                                [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, middle: Number(e.target.value) || 0 }
+                              }))}
+                              className="w-16 text-center font-bold bg-white border-green-200"
+                            />
+                            <span className="text-slate-500 text-xs">人</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-xl border border-slate-200 xs:col-span-2 md:col-span-1">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0 shadow-md">
+                            <span className="text-white font-bold text-sm">夜</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-700 text-sm">夜班</p>
+                            <p className="text-xs text-slate-500 hidden sm:block">18:00-07:00</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={staffConfig[configDate]?.night ?? 95}
+                              onChange={e => setStaffConfig(s => ({
+                                ...s,
+                                [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, night: Number(e.target.value) || 0 }
+                              }))}
+                              className="w-16 text-center font-bold bg-white border-slate-200"
+                            />
+                            <span className="text-slate-500 text-xs">人</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* 统计卡片 */}
+                  <div className="space-y-4">
+                    {hasCloudData && (
+                      <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200">
+                        <Cloud className="w-4 h-4" />
+                        <span>数据已保存到云端</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                      <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Truck className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
+                            <div className="min-w-0">
+                              <p className="text-blue-100 text-xs sm:text-sm">卸车量</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">{stats.totalUnload.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
+                            <div className="min-w-0">
+                              <p className="text-emerald-100 text-xs sm:text-sm">集包量</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">{stats.totalPackage.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
+                            <div className="min-w-0">
+                              <p className="text-amber-100 text-xs sm:text-sm">环线量</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">{stats.totalLoop.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
+                            <div className="min-w-0">
+                              <p className="text-teal-100 text-xs sm:text-sm">总收入</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
+                            <div className="min-w-0">
+                              <p className="text-rose-100 text-xs sm:text-sm">总薪资</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalSalary).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className={`shadow-lg hover:shadow-xl transition-shadow ${stats.totalProfit >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-br from-red-500 to-rose-500 text-white'}`}>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            {stats.totalProfit >= 0 ? <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" /> : <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />}
+                            <div className="min-w-0">
+                              <p className="text-white/80 text-xs sm:text-sm">利润</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                  
+                  {/* 数据表格 */}
+                  <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-3 px-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <FileSpreadsheet className="w-5 h-5" />
+                          数据明细
+                        </CardTitle>
+                        <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                          <span className="bg-emerald-500/20 px-2 py-1 rounded-full">收 ¥{Math.round(stats.totalRevenue).toLocaleString()}</span>
+                          <span className="bg-rose-500/20 px-2 py-1 rounded-full">薪 ¥{Math.round(stats.totalSalary).toLocaleString()}</span>
+                          <span className={`px-2 py-1 rounded-full ${stats.totalProfit >= 0 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>利 ¥{Math.round(stats.totalProfit).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto max-h-[400px] sm:max-h-[500px] overflow-y-auto touch-pan-x">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-slate-100 z-10">
+                            <TableRow>
+                              <TableHead className="font-bold text-xs px-2 py-2">时段</TableHead>
+                              <TableHead className="font-bold text-xs px-2 py-2">班</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">卸量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">卸人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">卸薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">包量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">包人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-600">包收</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">包薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">包盈</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">环量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">环人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-600">环收</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">环薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">环盈</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">管薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">其他</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-2 py-2">利润</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredData.length === 0 ? (
+                              <TableRow><TableCell colSpan={18} className="text-center py-8 text-slate-400">暂无数据</TableCell></TableRow>
+                            ) : filteredData.map((d, i) => (
+                              <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <TableCell className="font-medium text-xs px-2 py-2">{d.timeSlot}</TableCell>
+                                <TableCell className="px-2 py-2"><Badge className={`text-xs ${d.shift === '白班' ? 'bg-amber-500' : 'bg-slate-600'}`}>{d.shift === '白班' ? '白' : d.shift === '中班' ? '中' : '夜'}</Badge></TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.unloadCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.unloadStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.unloadSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.packageCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.packageStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-emerald-600">¥{d.packageRevenue.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.packageSalary.toFixed(0)}</TableCell>
+                                <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.packageProfit)}`}>¥{d.packageProfit.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.loopCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2">{d.loopStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-emerald-600">¥{d.loopRevenue.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.loopSalary.toFixed(0)}</TableCell>
+                                <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.manageSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.otherCost.toFixed(0)}</TableCell>
+                                <TableCell className={`text-right font-bold text-sm px-2 py-2 ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
               
-              {/* 各时段利润对比 */}
-              <Card className="bg-white shadow-xl border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 px-4">
-                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                    <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-                    时段利润对比
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                    <ResponsiveContainer>
-                      <BarChart data={hourlyProfitData} barCategoryGap="15%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="hour" tick={{ fontSize: 8 }} />
-                        <YAxis tick={{ fontSize: 9 }} width={50} />
-                        <Tooltip formatter={(v: number) => `¥${v}`} />
-                        <Bar dataKey="利润" fill={COLORS.success}>
-                          {hourlyProfitData.map((entry, i) => (
-                            <Cell key={i} fill={entry.利润 >= 0 ? COLORS.success : COLORS.danger} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+              {/* 每日汇总 - 仅daily tab显示，无筛选 */}
+              {activeTab === 'daily' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dailyStats.map(d => (
+                    <Card key={d.date} className={`bg-white shadow-lg border-0 overflow-hidden ${getBgColor(d.profit)}`}>
+                      <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white py-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Calendar className="w-5 h-5" />
+                            {d.date}
+                          </CardTitle>
+                          <Badge className={`text-xs ${d.profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                            {d.profit >= 0 ? '盈利' : '亏损'}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span className="text-slate-500 flex items-center gap-2">
+                              <DollarSign className="w-4 h-4 text-teal-500" />
+                              收入
+                            </span>
+                            <span className="font-semibold text-teal-600">¥{Math.round(d.revenue).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span className="text-slate-500 flex items-center gap-2">
+                              <DollarSign className="w-4 h-4 text-rose-500" />
+                              薪资
+                            </span>
+                            <span className="font-semibold text-rose-600">¥{Math.round(d.salary).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 bg-slate-50 -mx-4 px-4 rounded-lg mt-2">
+                            <span className="font-bold text-slate-700 flex items-center gap-2">
+                              <TrendingUp className="w-4 h-4" />
+                              利润
+                            </span>
+                            <span className={`font-bold text-lg ${getColor(d.profit)}`}>¥{Math.round(d.profit).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+              
+              {/* 数据看板 - 仅charts tab显示 */}
+              {activeTab === 'charts' && (
+                <>
+                  {/* 图表筛选区域 */}
+                  <Card className="bg-white shadow-lg border-0 overflow-hidden">
+                    <CardContent className="p-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                            <BarChart3 className="w-4 h-4 text-white" />
+                          </div>
+                          <span className="font-semibold text-slate-700 text-sm">图表筛选</span>
+                        </div>
+                        <Select value={selectedDate} onValueChange={setSelectedDate}>
+                          <SelectTrigger className="w-32 sm:w-40 bg-slate-50 border-slate-200">
+                            <SelectValue placeholder="日期" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部日期</SelectItem>
+                            {availableDates.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={selectedShift} onValueChange={setSelectedShift}>
+                          <SelectTrigger className="w-28 sm:w-32 bg-slate-50 border-slate-200">
+                            <SelectValue placeholder="班次" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部班次</SelectItem>
+                            <SelectItem value="白班">白班</SelectItem>
+                            <SelectItem value="中班">中班</SelectItem>
+                            <SelectItem value="夜班">夜班</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {/* 白班/夜班快捷筛选 */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setSelectedShift(selectedShift === '白班' ? 'all' : '白班')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                              selectedShift === '白班' 
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-md' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-amber-100'
+                            }`}
+                          >
+                            <Sun className="w-3.5 h-3.5" />
+                            白班
+                          </button>
+                          <button
+                            onClick={() => setSelectedShift(selectedShift === '夜班' ? 'all' : '夜班')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                              selectedShift === '夜班' 
+                                ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            <Moon className="w-3.5 h-3.5" />
+                            夜班
+                          </button>
+                        </div>
+                        <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* 图表区域 - 两列布局 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    {/* 左列 */}
+                    <div className="space-y-4 sm:space-y-6">
+                      {/* 业务量占比 */}
+                      <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+                            业务量占比
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                            <ResponsiveContainer>
+                              <PieChart>
+                                <Pie data={pieData} cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`} labelLine={false}>
+                                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                                </Pie>
+                                <Tooltip formatter={(v: number) => v.toLocaleString()} />
+                                <Legend />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      {/* 成本结构 - 折线图 */}
+                      <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
+                            成本结构趋势
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                            <ResponsiveContainer>
+                              <LineChart data={revenueDetailData.slice(0, 12)}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                                <YAxis tick={{ fontSize: 9 }} width={50} />
+                                <Tooltip formatter={(v: number) => `¥${v}`} />
+                                <Legend wrapperStyle={{ fontSize: 10 }} />
+                                <Line type="monotone" dataKey="卸车成本" stroke={COLORS.unload} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="其他成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    
+                    {/* 右列 */}
+                    <div className="space-y-4 sm:space-y-6">
+                      {/* 收入明细趋势 */}
+                      <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
+                            收入明细趋势
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                            <ResponsiveContainer>
+                              <LineChart data={revenueDetailData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                                <YAxis tick={{ fontSize: 9 }} width={50} />
+                                <Tooltip formatter={(v: number) => `¥${v}`} />
+                                <Legend wrapperStyle={{ fontSize: 10 }} />
+                                <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      {/* 利润趋势 */}
+                      <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                            利润趋势
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                            <ResponsiveContainer>
+                              <AreaChart data={profitTrendData}>
+                                <defs>
+                                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.4} />
+                                    <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
+                                  </linearGradient>
+                                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                                <YAxis tick={{ fontSize: 9 }} width={50} />
+                                <Tooltip formatter={(v: number) => `¥${v}`} />
+                                <Legend wrapperStyle={{ fontSize: 10 }} />
+                                <Area type="monotone" dataKey="利润" stroke={COLORS.success} fill="url(#colorProfit)" strokeWidth={2} />
+                                <Area type="monotone" dataKey="收入" stroke={COLORS.primary} fill="url(#colorRevenue)" strokeWidth={2} />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      {/* 各时段利润对比 */}
+                      <Card className="bg-white shadow-xl border-0 overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+                            时段利润对比
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
+                            <ResponsiveContainer>
+                              <BarChart data={hourlyProfitData} barCategoryGap="15%">
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="hour" tick={{ fontSize: 8 }} />
+                                <YAxis tick={{ fontSize: 9 }} width={50} />
+                                <Tooltip formatter={(v: number) => `¥${v}`} />
+                                <Bar dataKey="利润" fill={COLORS.success}>
+                                  {hourlyProfitData.map((entry, i) => (
+                                    <Cell key={i} fill={entry.利润 >= 0 ? COLORS.success : COLORS.danger} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </>
+              )}
             </div>
           </div>
         )}
         
-        {/* 数据表格 - 仅config tab显示 */}
-        {uploadedData.length > 0 && activeTab === 'config' && (
-          <Card className="bg-white shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-3 px-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileSpreadsheet className="w-5 h-5" />
-                  数据明细
-                </CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-                  <span className="bg-emerald-500/20 px-2 py-1 rounded-full">收 ¥{Math.round(stats.totalRevenue).toLocaleString()}</span>
-                  <span className="bg-rose-500/20 px-2 py-1 rounded-full">薪 ¥{Math.round(stats.totalSalary).toLocaleString()}</span>
-                  <span className={`px-2 py-1 rounded-full ${stats.totalProfit >= 0 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>利 ¥{Math.round(stats.totalProfit).toLocaleString()}</span>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto max-h-[400px] sm:max-h-[500px] overflow-y-auto touch-pan-x">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-slate-100 z-10">
-                    <TableRow>
-                      <TableHead className="font-bold text-xs px-2 py-2">时段</TableHead>
-                      <TableHead className="font-bold text-xs px-2 py-2">班</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">卸量</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">卸人</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">卸薪</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">包量</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">包人</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-600">包收</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">包薪</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">包盈</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">环量</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">环人</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-600">环收</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">环薪</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">环盈</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">管薪</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2 text-rose-600">其他</TableHead>
-                      <TableHead className="text-right font-bold text-xs px-2 py-2">利润</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.length === 0 ? (
-                      <TableRow><TableCell colSpan={18} className="text-center py-8 text-slate-400">暂无数据</TableCell></TableRow>
-                    ) : filteredData.map((d, i) => (
-                      <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                        <TableCell className="font-medium text-xs px-2 py-2">{d.timeSlot}</TableCell>
-                        <TableCell className="px-2 py-2"><Badge className={`text-xs ${d.shift === '白班' ? 'bg-amber-500' : 'bg-slate-600'}`}>{d.shift === '白班' ? '白' : d.shift === '中班' ? '中' : '夜'}</Badge></TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.unloadCount.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.unloadStaff}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.unloadSalary.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.packageCount.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.packageStaff}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-emerald-600">¥{d.packageRevenue.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.packageSalary.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.packageProfit)}`}>¥{d.packageProfit.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.loopCount.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2">{d.loopStaff}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-emerald-600">¥{d.loopRevenue.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.loopSalary.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.manageSalary.toFixed(0)}</TableCell>
-                        <TableCell className="text-right text-xs px-2 py-2 text-rose-600">¥{d.otherCost.toFixed(0)}</TableCell>
-                        <TableCell className={`text-right font-bold text-sm px-2 py-2 ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* 页面底部 */}
       </main>
       
       <footer className="bg-slate-900 text-slate-400 mt-6 sm:mt-8 md:mt-12">
