@@ -23,68 +23,46 @@ import * as XLSX from 'xlsx';
 interface UploadedData {
   date: string;
   timeSlot: string;
-  shift: string;  // 白班/中班/夜班
-  unloadCount: number;  // 卸车量
-  packageCount: number;  // 集包量
-  loopCount: number;     // 环线量
+  shift: string;
+  manageCount: number;   // 管理人数
+  unloadCount: number;    // 卸车量
+  unloadStaff: number;    // 卸车人数
+  packageCount: number;   // 集包量
+  packageStaff: number;   // 集包人数
+  loopCount: number;      // 环线量
+  loopStaff: number;      // 环线人数
+  expressStaff: number;   // 特快人数
+  fileStaff: number;       // 文件人数
+  inspectStaff: number;   // 发验人数
+  serviceStaff: number;   // 客服人数
+  receiveStaff: number;   // 接发员人数
 }
 
 interface CalculatedData extends UploadedData {
-  // 智能分配的人数
-  unloadStaff: number;   // 卸车人数
-  packageStaff: number;  // 集包人数
-  loopStaff: number;     // 环线人数
-  
-  // 各环节薪资
   unloadSalary: number;
-  packageSalary: number;
-  loopSalary: number;
-  
-  // 各环节收入
-  packageRevenue: number;
-  loopRevenue: number;
-  
-  // 各环节盈亏
   unloadProfit: number;
+  packageRevenue: number;
+  packageSalary: number;
   packageProfit: number;
+  loopRevenue: number;
+  loopSalary: number;
   loopProfit: number;
-  
-  // 其他成本
-  otherCost: number;
-  
-  // 管理薪资
   manageSalary: number;
-  
-  // 总计
+  otherCost: number;
   totalProfit: number;
   totalRevenue: number;
   totalSalary: number;
 }
 
-interface StaffConfig {
-  white: number;   // 白班人数
-  middle: number;  // 中班人数
-  night: number;   // 夜班人数
-}
-
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-// ============ 常量 ============
-const PACKAGE_UNIT_PRICE = 0.0722 * 0.95;  // 集包单价 0.0722 * 0.95
-const LOOP_UNIT_PRICE = 0.2909 * 0.95;     // 环线单价 0.2909 * 0.95
-const UNLOAD_PRICE = 14.62;                // 卸车单价
-const OTHER_UNLOAD_PRICE = 14.62;          // 其他成本-卸车
-const OTHER_PACKAGE_PRICE = 14.54;         // 其他成本-集包
 
 // ============ 计算公式 ============
 
 /**
- * 管理薪资公式
- * 白班(中班): 25.75 + 12000/30/24*2 + 30000/30/24
- * 夜班: 21.79 + 16000/30/24
+ * 管理薪资: IF(管理人数=2, 21.79+16000/30/24, 25.75+12000/30/24*2+30000/30/24)
  */
-function calcManageSalary(isNight: boolean): number {
-  if (isNight) {
+function calcManageSalary(manageCount: number): number {
+  if (manageCount === 2) {
     return 21.79 + 16000 / 30 / 24;
   } else {
     return 25.75 + 12000 / 30 / 24 * 2 + 30000 / 30 / 24;
@@ -92,14 +70,14 @@ function calcManageSalary(isNight: boolean): number {
 }
 
 /**
- * 卸车薪资: 人数 * 14.62 + 21
+ * 卸车薪资: 卸车人数 * 14.62 + 21
  */
 function calcUnloadSalary(staffCount: number): number {
-  return staffCount * UNLOAD_PRICE + 21;
+  return staffCount * 14.62 + 21;
 }
 
 /**
- * 集包薪资: (人数-13)*14.62 + 13*18 + 21
+ * 集包薪资: (集包人数-13) * 14.62 + 13 * 18 + 21
  */
 function calcPackageSalary(staffCount: number): number {
   if (staffCount <= 13) {
@@ -109,7 +87,7 @@ function calcPackageSalary(staffCount: number): number {
 }
 
 /**
- * 环线薪资: (人数-13)*14.62 + 13*18 + 42
+ * 环线薪资: (环线人数-13) * 14.62 + 13 * 18 + 42
  */
 function calcLoopSalary(staffCount: number): number {
   if (staffCount <= 13) {
@@ -119,80 +97,40 @@ function calcLoopSalary(staffCount: number): number {
 }
 
 /**
- * 其他成本
- * (卸车-1)*14.62 + 9000/26/13 + (集包-1)*14.54 + 7500/26/11 + 环线*(4200/26/9) + 特快*(4000/26/11) + 2000/24
- * 注：这里简化处理，假设特快=1
+ * 集包收入: 集包人数 * 集包量 * 0.94
  */
-function calcOtherCost(unloadStaff: number, packageStaff: number, loopStaff: number): number {
-  const unload = Math.max(0, unloadStaff - 1) * OTHER_UNLOAD_PRICE + 9000 / 26 / 13;
-  const pkg = Math.max(0, packageStaff - 1) * OTHER_PACKAGE_PRICE + 7500 / 26 / 11;
+function calcPackageRevenue(staffCount: number, packageCount: number): number {
+  return staffCount * packageCount * 0.94;
+}
+
+/**
+ * 环线收入: 环线人数 * 环线量 * 0.94
+ */
+function calcLoopRevenue(staffCount: number, loopCount: number): number {
+  return staffCount * loopCount * 0.94;
+}
+
+/**
+ * 其他成本:
+ * (卸车人数-1) * 14.62 + 9000/26/13
+ * + (集包人数-1) * 14.54 + 7500/26/11
+ * + 环线人数 * (4200/26/9)
+ * + 特快人数 * (4000/26/11)
+ * + 2000/24
+ */
+function calcOtherCost(
+  unloadStaff: number,
+  packageStaff: number,
+  loopStaff: number,
+  expressStaff: number
+): number {
+  const unload = Math.max(0, unloadStaff - 1) * 14.62 + 9000 / 26 / 13;
+  const pkg = Math.max(0, packageStaff - 1) * 14.54 + 7500 / 26 / 11;
   const loop = loopStaff * (4200 / 26 / 9);
-  const express = 1 * (4000 / 26 / 11);
+  const express = expressStaff * (4000 / 26 / 11);
   const fixed = 2000 / 24;
   return unload + pkg + loop + express + fixed;
 }
-
-// ============ 智能分配算法 ============
-/**
- * 根据班次总人数和业务量智能分配各环节人数
- */
-function smartAllocate(totalStaff: number, unloadCount: number, packageCount: number, loopCount: number, isWhite: boolean): { unload: number; package: number; loop: number } {
-  const total = unloadCount + packageCount + loopCount;
-  if (total === 0) {
-    return { unload: 0, package: 0, loop: 0 };
-  }
-  
-  // 基础比例：卸车25%、集包35%、环线40%
-  const baseRatio = { unload: 0.25, package: 0.35, loop: 0.40 };
-  
-  // 高峰时段加权（08:00-14:00）
-  const hour = parseInt(currentTimeSlot.split('-')[0]);
-  const isPeak = hour >= 8 && hour <= 14;
-  const peakBoost = isPeak ? 1.2 : 1.0;
-  
-  // 计算加权业务量
-  const weighted = {
-    unload: unloadCount * baseRatio.unload * peakBoost,
-    package: packageCount * baseRatio.package * peakBoost,
-    loop: loopCount * baseRatio.loop * peakBoost
-  };
-  
-  // 归一化
-  const totalWeighted = weighted.unload + weighted.package + weighted.loop;
-  if (totalWeighted === 0) {
-    return { unload: 0, package: 0, loop: 0 };
-  }
-  
-  // 计算分配人数
-  let unload = Math.round(totalStaff * (weighted.unload / totalWeighted));
-  let package_ = Math.round(totalStaff * (weighted.package / totalWeighted));
-  let loop = Math.round(totalStaff * (weighted.loop / totalWeighted));
-  
-  // 确保总人数不变
-  const diff = totalStaff - unload - package_ - loop;
-  if (diff !== 0) {
-    // 调整最大的那个
-    if (loop >= package_ && loop >= unload) {
-      loop += diff;
-    } else if (package_ >= unload) {
-      package_ += diff;
-    } else {
-      unload += diff;
-    }
-  }
-  
-  // 白班环线复用：卸车可复用至环线
-  if (isWhite && loop > 0) {
-    const reuse = Math.min(Math.floor(unload * 0.3), loop);
-    loop += reuse;
-    unload -= reuse;
-  }
-  
-  return { unload: Math.max(0, unload), package: Math.max(0, package_), loop: Math.max(0, loop) };
-}
-
-// 当前时段（用于判断是否高峰）
-let currentTimeSlot = '0800-0900';
 
 // ============ 日期解析 ============
 function parseDate(value: unknown): string {
@@ -215,9 +153,9 @@ function parseDate(value: unknown): string {
 }
 
 /**
- * 判断班次
+ * 根据时段判断班次
  */
-function getShift(timeSlot: string): string {
+function getShiftFromTimeSlot(timeSlot: string): string {
   const hour = parseInt(timeSlot.split('-')[0]);
   if (hour >= 7 && hour < 18) return '白班';
   if (hour >= 18 || hour < 7) return '夜班';
@@ -234,59 +172,45 @@ export default function SmartPerformanceDashboard() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // 班次人数配置
-  const [staffConfig, setStaffConfig] = useState<StaffConfig>({
-    white: 70,
-    middle: 0,
-    night: 95
-  });
+  const [staffConfig, setStaffConfig] = useState({ white: 70, middle: 0, night: 95 });
   
-  // 计算数据（当人数配置或上传数据变化时重新计算）
+  // 计算数据
   useEffect(() => {
     if (uploadedData.length > 0) {
       const calculated = uploadedData.map(row => {
-        currentTimeSlot = row.timeSlot;
-        const isWhite = row.shift === '白班';
-        const totalStaff = isWhite ? staffConfig.white : staffConfig.night;
+        // 各环节薪资
+        const unloadSalary = calcUnloadSalary(row.unloadStaff);
+        const packageSalary = calcPackageSalary(row.packageStaff);
+        const loopSalary = calcLoopSalary(row.loopStaff);
         
-        // 智能分配
-        const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite);
+        // 各环节收入
+        const packageRevenue = calcPackageRevenue(row.packageStaff, row.packageCount);
+        const loopRevenue = calcLoopRevenue(row.loopStaff, row.loopCount);
         
-        // 计算薪资
-        const unloadSalary = calcUnloadSalary(allocation.unload);
-        const packageSalary = calcPackageSalary(allocation.package);
-        const loopSalary = calcLoopSalary(allocation.loop);
-        
-        // 计算收入
-        const packageRevenue = row.packageCount * PACKAGE_UNIT_PRICE;
-        const loopRevenue = row.loopCount * LOOP_UNIT_PRICE;
-        
-        // 计算盈亏
+        // 卸车盈亏（无收入）
         const unloadProfit = 0 - unloadSalary;
         const packageProfit = packageRevenue - packageSalary;
         const loopProfit = loopRevenue - loopSalary;
         
-        // 其他成本和管理薪资
-        const otherCost = calcOtherCost(allocation.unload, allocation.package, allocation.loop);
-        const manageSalary = calcManageSalary(!isWhite);
+        // 管理薪资和其他成本
+        const manageSalary = calcManageSalary(row.manageCount);
+        const otherCost = calcOtherCost(row.unloadStaff, row.packageStaff, row.loopStaff, row.expressStaff);
         
         // 总盈亏
         const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
         
         return {
           ...row,
-          unloadStaff: allocation.unload,
-          packageStaff: allocation.package,
-          loopStaff: allocation.loop,
           unloadSalary,
-          packageSalary,
-          loopSalary,
-          packageRevenue,
-          loopRevenue,
           unloadProfit,
+          packageRevenue,
+          packageSalary,
           packageProfit,
+          loopRevenue,
+          loopSalary,
           loopProfit,
-          otherCost,
           manageSalary,
+          otherCost,
           totalProfit,
           totalRevenue: packageRevenue + loopRevenue,
           totalSalary: unloadSalary + packageSalary + loopSalary + manageSalary
@@ -294,17 +218,13 @@ export default function SmartPerformanceDashboard() {
       });
       setCalculatedData(calculated);
     }
-  }, [uploadedData, staffConfig]);
+  }, [uploadedData]);
   
   // 筛选
   const filteredData = useMemo(() => {
     let result = [...calculatedData];
-    if (selectedDate !== 'all') {
-      result = result.filter(d => d.date === selectedDate);
-    }
-    if (selectedShift !== 'all') {
-      result = result.filter(d => d.shift === selectedShift);
-    }
+    if (selectedDate !== 'all') result = result.filter(d => d.date === selectedDate);
+    if (selectedShift !== 'all') result = result.filter(d => d.shift === selectedShift);
     return result;
   }, [calculatedData, selectedDate, selectedShift]);
   
@@ -384,9 +304,18 @@ export default function SmartPerformanceDashboard() {
         const dateCol = findCol(['日期', 'date']);
         const timeCol = findCol(['时段', 'time']);
         const shiftCol = findCol(['班次', 'shift']);
-        const unloadCol = findCol(['卸车量', '卸车']);
-        const packageCol = findCol(['集包量', '集包']);
-        const loopCol = findCol(['环线量', '环线']);
+        const manageCol = findCol(['管理']);
+        const unloadCountCol = findCol(['卸车量']);
+        const unloadStaffCol = findCol(['卸车人数', '卸车人']);
+        const packageCountCol = findCol(['集包量']);
+        const packageStaffCol = findCol(['集包人数', '集包人']);
+        const loopCountCol = findCol(['环线量']);
+        const loopStaffCol = findCol(['环线人数', '环线人']);
+        const expressCol = findCol(['特快']);
+        const fileCol = findCol(['文件']);
+        const inspectCol = findCol(['发验']);
+        const serviceCol = findCol(['客服']);
+        const receiveCol = findCol(['接发员']);
         
         if (!dateCol || !timeCol) {
           setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' });
@@ -397,15 +326,24 @@ export default function SmartPerformanceDashboard() {
           const timeSlot = String(row[timeCol] || '').trim();
           let shift = shiftCol ? String(row[shiftCol] || '') : '';
           if (!shift) {
-            shift = getShift(timeSlot);
+            shift = getShiftFromTimeSlot(timeSlot);
           }
           return {
             date: parseDate(row[dateCol]),
             timeSlot,
             shift,
-            unloadCount: Number(row[unloadCol] || 0),
-            packageCount: Number(row[packageCol] || 0),
-            loopCount: Number(row[loopCol] || 0)
+            manageCount: Number(row[manageCol] || 2),
+            unloadCount: Number(row[unloadCountCol] || 0),
+            unloadStaff: Number(row[unloadStaffCol] || 0),
+            packageCount: Number(row[packageCountCol] || 0),
+            packageStaff: Number(row[packageStaffCol] || 0),
+            loopCount: Number(row[loopCountCol] || 0),
+            loopStaff: Number(row[loopStaffCol] || 0),
+            expressStaff: Number(row[expressCol] || 1),
+            fileStaff: Number(row[fileCol] || 0),
+            inspectStaff: Number(row[inspectCol] || 0),
+            serviceStaff: Number(row[serviceCol] || 0),
+            receiveStaff: Number(row[receiveCol] || 0)
           };
         }).filter(d => d.date && d.timeSlot);
         
@@ -431,11 +369,20 @@ export default function SmartPerformanceDashboard() {
   // 下载模板
   const downloadTemplate = () => {
     const template = [
-      { '日期': '2026-04-01', '时段': '0700-0800', '班次': '白班', '卸车量': 5000, '集包量': 3000, '环线量': 2000 },
-      { '日期': '2026-04-01', '时段': '0800-0900', '班次': '白班', '卸车量': 8000, '集包量': 5000, '环线量': 3000 },
-      { '日期': '2026-04-01', '时段': '0900-1000', '班次': '白班', '卸车量': 6000, '集包量': 4000, '环线量': 2500 },
-      { '日期': '2026-04-01', '时段': '1800-1900', '班次': '夜班', '卸车量': 7000, '集包量': 4500, '环线量': 2800 },
-      { '日期': '2026-04-01', '时段': '1900-2000', '班次': '夜班', '卸车量': 9000, '集包量': 6000, '环线量': 3500 },
+      { 
+        '日期': '2026-04-01', '时段': '0700-0800', '班次': '白班', '管理人数': 4,
+        '卸车量': 5000, '卸车人数': 8,
+        '集包量': 3000, '集包人数': 21,
+        '环线量': 2000, '环线人数': 33,
+        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
+      },
+      { 
+        '日期': '2026-04-01', '时段': '0800-0900', '班次': '白班', '管理人数': 4,
+        '卸车量': 8000, '卸车人数': 8,
+        '集包量': 5000, '集包人数': 21,
+        '环线量': 3000, '环线人数': 33,
+        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
+      },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -446,28 +393,12 @@ export default function SmartPerformanceDashboard() {
   // 导出
   const exportData = () => {
     const rows = filteredData.map(d => ({
-      '日期': d.date,
-      '时段': d.timeSlot,
-      '班次': d.shift,
-      '卸车量': d.unloadCount,
-      '卸车人数': d.unloadStaff,
-      '卸车薪资': d.unloadSalary.toFixed(2),
-      '卸车盈亏': d.unloadProfit.toFixed(2),
-      '集包量': d.packageCount,
-      '集包人数': d.packageStaff,
-      '集包收入': d.packageRevenue.toFixed(2),
-      '集包薪资': d.packageSalary.toFixed(2),
-      '集包盈亏': d.packageProfit.toFixed(2),
-      '环线量': d.loopCount,
-      '环线人数': d.loopStaff,
-      '环线收入': d.loopRevenue.toFixed(2),
-      '环线薪资': d.loopSalary.toFixed(2),
-      '环线盈亏': d.loopProfit.toFixed(2),
-      '管理薪资': d.manageSalary.toFixed(2),
-      '其他成本': d.otherCost.toFixed(2),
-      '总收入': d.totalRevenue.toFixed(2),
-      '总薪资': d.totalSalary.toFixed(2),
-      '利润': d.totalProfit.toFixed(2)
+      '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
+      '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
+      '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
+      '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
+      '管理薪资': d.manageSalary.toFixed(2), '其他成本': d.otherCost.toFixed(2),
+      '总收入': d.totalRevenue.toFixed(2), '总薪资': d.totalSalary.toFixed(2), '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -493,7 +424,6 @@ export default function SmartPerformanceDashboard() {
   }, [notification]);
   
   const getColor = (v: number) => v >= 0 ? 'text-emerald-500' : 'text-red-500';
-  const getBgColor = (v: number) => v >= 0 ? 'bg-emerald-500' : 'bg-red-500';
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -542,8 +472,8 @@ export default function SmartPerformanceDashboard() {
                 <input type="file" accept=".xlsx,.xls" onChange={handleUpload} className="hidden" />
               </label>
               <div className="text-sm text-slate-600">
-                <p className="font-medium">表头：日期 | 时段 | 班次 | 卸车量 | 集包量 | 环线量</p>
-                <p className="text-xs mt-1">上传业务量数据，系统自动智能分配人数并计算盈亏</p>
+                <p className="font-medium">表头：日期 | 时段 | 班次 | 管理人数 | 卸车量/人数 | 集包量/人数 | 环线量/人数 | 特快 | 文件 | 发验 | 客服 | 接发员</p>
+                <p className="text-xs mt-1">收入公式：人数 × 业务量 × 0.94</p>
               </div>
             </div>
           </CardContent>
@@ -558,31 +488,27 @@ export default function SmartPerformanceDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center gap-3">
-                <Label className="w-16">白班</Label>
+                <span className="w-20 text-sm font-medium">白班人数</span>
                 <Input
                   type="number"
                   value={staffConfig.white}
                   onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
                   className="w-28"
                 />
-                <span className="text-sm text-slate-500">人 (07:00-18:00)</span>
+                <span className="text-sm text-slate-500">(07:00-18:00)</span>
               </div>
               <div className="flex items-center gap-3">
-                <Label className="w-16">夜班</Label>
+                <span className="w-20 text-sm font-medium">夜班人数</span>
                 <Input
                   type="number"
                   value={staffConfig.night}
                   onChange={e => setStaffConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
                   className="w-28"
                 />
-                <span className="text-sm text-slate-500">人 (18:00-07:00)</span>
+                <span className="text-sm text-slate-500">(18:00-07:00)</span>
               </div>
-            </div>
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-              <Info className="w-4 h-4 inline mr-1" />
-              智能分配规则：卸车25% | 集包35% | 环线40%，高峰时段(08:00-14:00)自动加权，白班卸车可复用至环线
             </div>
           </CardContent>
         </Card>
@@ -899,14 +825,9 @@ export default function SmartPerformanceDashboard() {
       
       <footer className="border-t border-slate-200 bg-white/50 mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-slate-500">
-          物流绩效分析系统 · 智能排班自动盈亏计算
+          物流绩效分析系统 · 基于Excel公式计算
         </div>
       </footer>
     </div>
   );
-}
-
-// 需要添加 Label 组件
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <label className={`text-sm font-medium ${className}`}>{children}</label>;
 }
