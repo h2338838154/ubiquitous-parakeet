@@ -274,8 +274,22 @@ export default function SmartPerformanceDashboard() {
         } else {
           setIsCloudConnected(true);
           if (data && data.length > 0) {
+            // 解析日期（可能是Excel序列号或字符串）
+            const parseDateValue = (val: unknown): string => {
+              if (typeof val === 'number') {
+                return excelSerialToDate(val);
+              } else if (typeof val === 'string') {
+                const num = parseInt(val, 10);
+                if (!isNaN(num) && val.match(/^\d+$/)) {
+                  return excelSerialToDate(num);
+                }
+                return val;
+              }
+              return String(val);
+            };
+            
             const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
-              date: String(row['日期']),
+              date: parseDateValue(row['日期']),
               timeSlot: row['时段'],
               shift: row['班次'] || '白班',
               freq: row['频次'] || '',
@@ -296,7 +310,7 @@ export default function SmartPerformanceDashboard() {
             setSelectedDate('all');
             
             // 为每个日期创建默认班次配置
-            const dates = [...new Set(parsed.map(d => d.date))];
+            const dates = [...new Set(parsed.map(d => d.date))].sort();
             const defaultConfig: DailyStaffConfig = {};
             dates.forEach(date => {
               defaultConfig[date] = { white: 70, middle: 0, night: 95 };
@@ -305,7 +319,7 @@ export default function SmartPerformanceDashboard() {
             
             // 设置配置日期为第一个有数据的日期
             if (dates.length > 0) {
-              setConfigDate(dates.sort()[0]);
+              setConfigDate(dates[0]);
             }
           } else {
             setHasCloudData(false);
