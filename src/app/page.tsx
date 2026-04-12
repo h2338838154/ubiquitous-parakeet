@@ -265,17 +265,16 @@ export default function SmartPerformanceDashboard() {
   useEffect(() => {
     const checkCloudConnection = async () => {
       try {
-        const { data, error } = await loadShiftConfig();
+        // 直接测试云端连接
+        const { data, error } = await loadLogisticsData();
         if (error) {
           setIsCloudConnected(false);
-          setHasCloudData(false);
         } else {
           setIsCloudConnected(true);
           setHasCloudData((data || []).length > 0);
         }
       } catch {
         setIsCloudConnected(false);
-        setHasCloudData(false);
       }
     };
     checkCloudConnection();
