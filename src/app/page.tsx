@@ -20,7 +20,7 @@ import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { 
   saveLogisticsData, loadLogisticsData, saveShiftConfig, loadShiftConfig, clearLogisticsData,
-  type LogisticsData, type ShiftConfig 
+  type LogisticsDataRow, type ShiftConfig 
 } from '@/lib/supabase-client';
 
 // ============ 类型定义 ============
@@ -297,17 +297,23 @@ export default function SmartPerformanceDashboard() {
       }
       
       if (data && data.length > 0) {
-        const parsed: UploadedData[] = data.map(row => ({
-          date: row.date,
-          timeSlot: row.time_slot,
-          shift: row.shift_type,
-          freq: row.frequency,
-          unloadCount: row.unload_count,
-          loopCount: row.loop_count,
-          packageCount: row.package_count,
-          manageCount: row.shift_type === '夜班' ? 2 : 4,
-          unloadStaff: 0, packageStaff: 0, loopStaff: 0,
-          fileStaff: 0, inspectStaff: 0, serviceStaff: 0, receiveStaff: 0
+        // 适配中文列名
+        const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
+          date: String(row['日期']),
+          timeSlot: row['时段'],
+          shift: row['班次'] || '白班',
+          freq: row['频次'] || '',
+          unloadCount: row['卸车量'] || 0,
+          loopCount: row['环线量'] || 0,
+          packageCount: row['集包量'] || 0,
+          manageCount: row['管理'] || 4,
+          unloadStaff: row['卸车人数'] || 0,
+          packageStaff: row['集包人数'] || 0,
+          loopStaff: row['环线人数'] || 0,
+          fileStaff: row['文件人数'] || 0,
+          inspectStaff: row['发验人数'] || 0,
+          serviceStaff: row['客服人数'] || 0,
+          receiveStaff: 0
         }));
         setUploadedData(parsed);
         setHasCloudData(true);
@@ -336,29 +342,37 @@ export default function SmartPerformanceDashboard() {
     
     setIsSaving(true);
     try {
-      // 保存业务数据
-      const logisticsRecords: Partial<LogisticsData>[] = calculatedData.map(d => ({
-        date: d.date,
-        time_slot: d.timeSlot,
-        shift_type: d.shift,
-        frequency: d.freq,
-        unload_count: d.unloadCount,
-        unload_price: PACKAGE_UNIT_PRICE.toString(),
-        unload_profit: d.unloadProfit.toString(),
-        unload_loss: Math.max(0, -d.unloadProfit).toString(),
-        package_count: d.packageCount,
-        package_price: PACKAGE_UNIT_PRICE.toString(),
-        package_profit: d.packageProfit.toString(),
-        package_loss: Math.max(0, -d.packageProfit).toString(),
-        loop_count: d.loopCount,
-        loop_price: LOOP_UNIT_PRICE.toString(),
-        loop_profit: d.loopProfit.toString(),
-        loop_loss: Math.max(0, -d.loopProfit).toString(),
-        other_cost: d.otherCost.toString(),
-        sender_count: 0,
-        person_count: d.unloadStaff + d.packageStaff + d.loopStaff,
-        receiver_count: d.receiveStaff,
-        total_profit: d.totalProfit.toString()
+      // 保存业务数据（使用中文列名适配现有表结构）
+      const logisticsRecords = calculatedData.map(d => ({
+        sync_id: `${d.date}_${d.timeSlot}`,
+        '日期': d.date,
+        '时段': d.timeSlot,
+        '班次': d.shift,
+        '频次': d.freq,
+        '卸车量': d.unloadCount,
+        '环线量': d.loopCount,
+        '集包量': d.packageCount,
+        '管理': d.manageCount,
+        '管理薪资': Math.round(d.manageSalary * 100) / 100,
+        '卸车人数': d.unloadStaff,
+        '卸车薪资': Math.round(d.unloadSalary * 100) / 100,
+        '卸车盈亏': Math.round(d.unloadProfit * 100) / 100,
+        '集包人数': d.packageStaff,
+        '集包单价': PACKAGE_UNIT_PRICE,
+        '集包收入': Math.round(d.packageRevenue * 100) / 100,
+        '集包薪资': Math.round(d.packageSalary * 100) / 100,
+        '集包盈亏': Math.round(d.packageProfit * 100) / 100,
+        '环线人数': d.loopStaff,
+        '环线单价': LOOP_UNIT_PRICE,
+        '环线收入': Math.round(d.loopRevenue * 100) / 100,
+        '环线薪资': Math.round(d.loopSalary * 100) / 100,
+        '环线盈亏': Math.round(d.loopProfit * 100) / 100,
+        '文件人数': d.fileStaff,
+        '发验人数': d.inspectStaff,
+        '客服人数': d.serviceStaff,
+        '其他成本': Math.round(d.otherCost * 100) / 100,
+        '总盈亏': Math.round(d.totalProfit * 100) / 100,
+        '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
       
       const saveResult = await saveLogisticsData(logisticsRecords);
@@ -366,67 +380,12 @@ export default function SmartPerformanceDashboard() {
         throw new Error(saveResult.error);
       }
       
-      // 保存班次配置
-      const dates = [...new Set(calculatedData.map(d => d.date))];
-      for (const date of dates) {
-        const dayData = calculatedData.filter(d => d.date === date);
-        const hasWhite = dayData.some(d => d.shift === '白班');
-        const hasMiddle = dayData.some(d => d.shift === '中班');
-        const hasNight = dayData.some(d => d.shift === '夜班');
-        
-        if (hasWhite) {
-          const whiteData = dayData.filter(d => d.shift === '白班');
-          const whiteConfig: ShiftConfig = {
-            date,
-            shift_type: '白班',
-            unload_count: whiteData.reduce((s, d) => s + d.unloadStaff, 0),
-            package_count: whiteData.reduce((s, d) => s + d.packageStaff, 0),
-            loop_count: whiteData.reduce((s, d) => s + d.loopStaff, 0),
-            sender_count: whiteData.reduce((s, d) => s + d.fileStaff, 0),
-            receiver_count: whiteData.reduce((s, d) => s + d.receiveStaff, 0)
-          };
-          await saveShiftConfig(whiteConfig);
-        }
-        
-        if (hasMiddle) {
-          const middleData = dayData.filter(d => d.shift === '中班');
-          const middleConfig: ShiftConfig = {
-            date,
-            shift_type: '中班',
-            unload_count: middleData.reduce((s, d) => s + d.unloadStaff, 0),
-            package_count: middleData.reduce((s, d) => s + d.packageStaff, 0),
-            loop_count: middleData.reduce((s, d) => s + d.loopStaff, 0),
-            sender_count: middleData.reduce((s, d) => s + d.fileStaff, 0),
-            receiver_count: middleData.reduce((s, d) => s + d.receiveStaff, 0)
-          };
-          await saveShiftConfig(middleConfig);
-        }
-        
-        if (hasNight) {
-          const nightData = dayData.filter(d => d.shift === '夜班');
-          const nightConfig: ShiftConfig = {
-            date,
-            shift_type: '夜班',
-            unload_count: nightData.reduce((s, d) => s + d.unloadStaff, 0),
-            package_count: nightData.reduce((s, d) => s + d.packageStaff, 0),
-            loop_count: nightData.reduce((s, d) => s + d.loopStaff, 0),
-            sender_count: nightData.reduce((s, d) => s + d.fileStaff, 0),
-            receiver_count: nightData.reduce((s, d) => s + d.receiveStaff, 0)
-          };
-          await saveShiftConfig(nightConfig);
-        }
-      }
-      
-      // 更新班次人数配置
-      const configDate = staffConfig.date;
-      await saveShiftConfig({
-        date: configDate,
-        shift_type: '配置',
-        unload_count: staffConfig.white,
-        package_count: staffConfig.middle,
-        loop_count: staffConfig.night,
-        sender_count: 0,
-        receiver_count: 0
+      // 保存班次配置到 localStorage
+      saveShiftConfig({
+        date: staffConfig.date,
+        white: staffConfig.white,
+        middle: staffConfig.middle,
+        night: staffConfig.night
       });
       
       setHasCloudData(true);
