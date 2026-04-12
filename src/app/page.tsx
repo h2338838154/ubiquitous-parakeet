@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
-  FileUp, Trash2, Users, Info
+  FileUp, Trash2, Users
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -24,21 +24,35 @@ interface UploadedData {
   date: string;
   timeSlot: string;
   shift: string;
-  manageCount: number;   // 管理人数
-  unloadCount: number;    // 卸车量
-  unloadStaff: number;    // 卸车人数
-  packageCount: number;   // 集包量
-  packageStaff: number;   // 集包人数
-  loopCount: number;      // 环线量
-  loopStaff: number;      // 环线人数
-  expressStaff: number;   // 特快人数
-  fileStaff: number;       // 文件人数
-  inspectStaff: number;   // 发验人数
-  serviceStaff: number;   // 客服人数
-  receiveStaff: number;   // 接发员人数
+  freq: string;            // 频次
+  unloadCount: number;      // 卸车量
+  loopCount: number;        // 环线量
+  packageCount: number;     // 集包量
+  manageCount: number;      // 管理人数
+  unloadStaff: number;      // 卸车人数
+  packageStaff: number;      // 集包人数
+  loopStaff: number;        // 环线人数
+  fileStaff: number;         // 文件人数
+  inspectStaff: number;      // 发验人数
+  serviceStaff: number;      // 客服人数
+  receiveStaff: number;      // 接发员人数
+  
+  // 以下为Excel中已有的计算结果（用于验证）
+  excelManageSalary?: number;
+  excelUnloadSalary?: number;
+  excelUnloadProfit?: number;
+  excelPackageRevenue?: number;
+  excelPackageSalary?: number;
+  excelPackageProfit?: number;
+  excelLoopRevenue?: number;
+  excelLoopSalary?: number;
+  excelOtherCost?: number;
+  excelTotalProfit?: number;
 }
 
 interface CalculatedData extends UploadedData {
+  // 计算结果
+  manageSalary: number;
   unloadSalary: number;
   unloadProfit: number;
   packageRevenue: number;
@@ -47,14 +61,15 @@ interface CalculatedData extends UploadedData {
   loopRevenue: number;
   loopSalary: number;
   loopProfit: number;
-  manageSalary: number;
   otherCost: number;
   totalProfit: number;
-  totalRevenue: number;
-  totalSalary: number;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+// ============ 常量 ============
+const PACKAGE_UNIT_PRICE = 0.06859;
+const LOOP_UNIT_PRICE = 0.276355;
 
 // ============ 计算公式 ============
 
@@ -63,8 +78,10 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
  */
 function calcManageSalary(manageCount: number): number {
   if (manageCount === 2) {
+    // 夜班
     return 21.79 + 16000 / 30 / 24;
   } else {
+    // 白班
     return 25.75 + 12000 / 30 / 24 * 2 + 30000 / 30 / 24;
   }
 }
@@ -100,34 +117,34 @@ function calcLoopSalary(staffCount: number): number {
  * 集包收入: 集包量 * 0.06859
  */
 function calcPackageRevenue(packageCount: number): number {
-  return packageCount * 0.06859;
+  return packageCount * PACKAGE_UNIT_PRICE;
 }
 
 /**
  * 环线收入: 环线量 * 0.276355
  */
 function calcLoopRevenue(loopCount: number): number {
-  return loopCount * 0.276355;
+  return loopCount * LOOP_UNIT_PRICE;
 }
 
 /**
  * 其他成本:
- * (卸车人数-1) * 14.62 + 9000/26/13
- * + (集包人数-1) * 14.54 + 7500/26/11
- * + 环线人数 * (4200/26/9)
- * + 特快人数 * (4000/26/11)
+ * (文件人数-1) * 14.62 + 9000/26/13
+ * + (发验人数-1) * 14.54 + 7500/26/11
+ * + 客服人数 * (4200/26/9)
+ * + 接发员 * (4000/26/11)
  * + 2000/24
  */
 function calcOtherCost(
-  unloadStaff: number,
-  packageStaff: number,
-  loopStaff: number,
-  expressStaff: number
+  fileStaff: number,
+  inspectStaff: number,
+  serviceStaff: number,
+  receiveStaff: number
 ): number {
-  const unload = Math.max(0, unloadStaff - 1) * 14.62 + 9000 / 26 / 13;
-  const pkg = Math.max(0, packageStaff - 1) * 14.54 + 7500 / 26 / 11;
-  const loop = loopStaff * (4200 / 26 / 9);
-  const express = expressStaff * (4000 / 26 / 11);
+  const unload = Math.max(0, fileStaff - 1) * 14.62 + 9000 / 26 / 13;
+  const pkg = Math.max(0, inspectStaff - 1) * 14.54 + 7500 / 26 / 11;
+  const loop = serviceStaff * (4200 / 26 / 9);
+  const express = receiveStaff * (4000 / 26 / 11);
   const fixed = 2000 / 24;
   return unload + pkg + loop + express + fixed;
 }
@@ -140,6 +157,13 @@ function parseDate(value: unknown): string {
     return format(date, 'yyyy-MM-dd');
   }
   if (typeof value === 'string') {
+    // 处理中文日期如 "4月1日"
+    const chineseMatch = value.match(/(\d+)月(\d+)日/);
+    if (chineseMatch) {
+      const month = chineseMatch[1].padStart(2, '0');
+      const day = chineseMatch[2].padStart(2, '0');
+      return `2026-${month}-${day}`;
+    }
     const formats = ['yyyy/MM/dd', 'yyyy-M-d', 'd-MMM-yyyy', 'MM/dd/yyyy', 'yyyy.MM.dd'];
     for (const fmt of formats) {
       try {
@@ -158,7 +182,6 @@ function parseDate(value: unknown): string {
 function getShiftFromTimeSlot(timeSlot: string): string {
   const hour = parseInt(timeSlot.split('-')[0]);
   if (hour >= 7 && hour < 18) return '白班';
-  if (hour >= 18 || hour < 7) return '夜班';
   return '夜班';
 }
 
@@ -171,36 +194,36 @@ export default function SmartPerformanceDashboard() {
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
-  // 班次人数配置
-  const [staffConfig, setStaffConfig] = useState({ white: 70, middle: 0, night: 95 });
-  
   // 计算数据
   useEffect(() => {
     if (uploadedData.length > 0) {
       const calculated = uploadedData.map(row => {
-        // 各环节薪资
+        // 管理薪资
+        const manageSalary = calcManageSalary(row.manageCount);
+        
+        // 卸车薪资
         const unloadSalary = calcUnloadSalary(row.unloadStaff);
-        const packageSalary = calcPackageSalary(row.packageStaff);
-        const loopSalary = calcLoopSalary(row.loopStaff);
-        
-        // 各环节收入
-        const packageRevenue = calcPackageRevenue(row.packageCount);
-        const loopRevenue = calcLoopRevenue(row.loopCount);
-        
-        // 卸车盈亏（无收入）
         const unloadProfit = 0 - unloadSalary;
+        
+        // 集包
+        const packageRevenue = calcPackageRevenue(row.packageCount);
+        const packageSalary = calcPackageSalary(row.packageStaff);
         const packageProfit = packageRevenue - packageSalary;
+        
+        // 环线
+        const loopRevenue = calcLoopRevenue(row.loopCount);
+        const loopSalary = calcLoopSalary(row.loopStaff);
         const loopProfit = loopRevenue - loopSalary;
         
-        // 管理薪资和其他成本
-        const manageSalary = calcManageSalary(row.manageCount);
-        const otherCost = calcOtherCost(row.unloadStaff, row.packageStaff, row.loopStaff, row.expressStaff);
+        // 其他成本 (文件人数, 发验人数, 客服人数, 接发员)
+        const otherCost = calcOtherCost(row.fileStaff, row.inspectStaff, row.serviceStaff, row.receiveStaff);
         
-        // 总盈亏
+        // 总盈亏 = 卸车盈亏 + 集包盈亏 + 环线盈亏 - 管理薪资 - 其他成本
         const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
         
         return {
           ...row,
+          manageSalary,
           unloadSalary,
           unloadProfit,
           packageRevenue,
@@ -209,11 +232,8 @@ export default function SmartPerformanceDashboard() {
           loopRevenue,
           loopSalary,
           loopProfit,
-          manageSalary,
           otherCost,
-          totalProfit,
-          totalRevenue: packageRevenue + loopRevenue,
-          totalSalary: unloadSalary + packageSalary + loopSalary + manageSalary
+          totalProfit
         };
       });
       setCalculatedData(calculated);
@@ -238,8 +258,8 @@ export default function SmartPerformanceDashboard() {
     const totalUnload = filteredData.reduce((s, d) => s + d.unloadCount, 0);
     const totalPackage = filteredData.reduce((s, d) => s + d.packageCount, 0);
     const totalLoop = filteredData.reduce((s, d) => s + d.loopCount, 0);
-    const totalRevenue = filteredData.reduce((s, d) => s + d.totalRevenue, 0);
-    const totalSalary = filteredData.reduce((s, d) => s + d.totalSalary, 0);
+    const totalRevenue = filteredData.reduce((s, d) => s + d.packageRevenue + d.loopRevenue, 0);
+    const totalSalary = filteredData.reduce((s, d) => s + d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary, 0);
     const totalProfit = filteredData.reduce((s, d) => s + d.totalProfit, 0);
     return { totalUnload, totalPackage, totalLoop, totalRevenue, totalSalary, totalProfit };
   }, [filteredData]);
@@ -250,8 +270,8 @@ export default function SmartPerformanceDashboard() {
     calculatedData.forEach(d => {
       const existing = map.get(d.date) || { date: d.date, profit: 0, revenue: 0, salary: 0 };
       existing.profit += d.totalProfit;
-      existing.revenue += d.totalRevenue;
-      existing.salary += d.totalSalary;
+      existing.revenue += d.packageRevenue + d.loopRevenue;
+      existing.salary += d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary;
       map.set(d.date, existing);
     });
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -304,18 +324,18 @@ export default function SmartPerformanceDashboard() {
         const dateCol = findCol(['日期', 'date']);
         const timeCol = findCol(['时段', 'time']);
         const shiftCol = findCol(['班次', 'shift']);
-        const manageCol = findCol(['管理']);
+        const freqCol = findCol(['频次']);
         const unloadCountCol = findCol(['卸车量']);
-        const unloadStaffCol = findCol(['卸车人数', '卸车人']);
-        const packageCountCol = findCol(['集包量']);
-        const packageStaffCol = findCol(['集包人数', '集包人']);
         const loopCountCol = findCol(['环线量']);
-        const loopStaffCol = findCol(['环线人数', '环线人']);
-        const expressCol = findCol(['特快']);
-        const fileCol = findCol(['文件']);
-        const inspectCol = findCol(['发验']);
-        const serviceCol = findCol(['客服']);
-        const receiveCol = findCol(['接发员']);
+        const packageCountCol = findCol(['集包量']);
+        const manageCol = findCol(['管理人数', '管理']);
+        const unloadStaffCol = findCol(['卸车人数']);
+        const packageStaffCol = findCol(['集包人数']);
+        const loopStaffCol = findCol(['环线人数']);
+        const fileCol = findCol(['文件人数', '文件']);
+        const inspectCol = findCol(['发验人数', '发验']);
+        const serviceCol = findCol(['客服人数', '客服']);
+        const receiveCol = findCol(['接发员', '接发员']);
         
         if (!dateCol || !timeCol) {
           setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' });
@@ -332,14 +352,14 @@ export default function SmartPerformanceDashboard() {
             date: parseDate(row[dateCol]),
             timeSlot,
             shift,
-            manageCount: Number(row[manageCol] || 2),
+            freq: freqCol ? String(row[freqCol] || '') : '',
             unloadCount: Number(row[unloadCountCol] || 0),
-            unloadStaff: Number(row[unloadStaffCol] || 0),
-            packageCount: Number(row[packageCountCol] || 0),
-            packageStaff: Number(row[packageStaffCol] || 0),
             loopCount: Number(row[loopCountCol] || 0),
+            packageCount: Number(row[packageCountCol] || 0),
+            manageCount: Number(row[manageCol] || 2),
+            unloadStaff: Number(row[unloadStaffCol] || 0),
+            packageStaff: Number(row[packageStaffCol] || 0),
             loopStaff: Number(row[loopStaffCol] || 0),
-            expressStaff: Number(row[expressCol] || 1),
             fileStaff: Number(row[fileCol] || 0),
             inspectStaff: Number(row[inspectCol] || 0),
             serviceStaff: Number(row[serviceCol] || 0),
@@ -370,18 +390,16 @@ export default function SmartPerformanceDashboard() {
   const downloadTemplate = () => {
     const template = [
       { 
-        '日期': '2026-04-01', '时段': '0700-0800', '班次': '白班', '管理人数': 4,
-        '卸车量': 5000, '卸车人数': 8,
-        '集包量': 3000, '集包人数': 21,
-        '环线量': 2000, '环线人数': 33,
-        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
+        '日期': '4月1日', '时段': '0700-0800', '班次': '白班', '频次': '进口',
+        '卸车量': 1064, '环线量': 1528, '集包量': 246,
+        '管理人数': 4, '卸车人数': 8, '集包人数': 21, '环线人数': 33,
+        '文件人数': 0, '发验人数': 2, '客服人数': 2, '接发员': 1
       },
       { 
-        '日期': '2026-04-01', '时段': '0800-0900', '班次': '白班', '管理人数': 4,
-        '卸车量': 8000, '卸车人数': 8,
-        '集包量': 5000, '集包人数': 21,
-        '环线量': 3000, '环线人数': 33,
-        '特快': 0, '文件': 0, '发验': 2, '客服': 2, '接发员': 1
+        '日期': '4月1日', '时段': '0000-0100', '班次': '夜班', '频次': '进口',
+        '卸车量': 16991, '环线量': 1608, '集包量': 6568,
+        '管理人数': 2, '卸车人数': 17, '集包人数': 25, '环线人数': 45,
+        '文件人数': 4, '发验人数': 3, '客服人数': 0, '接发员': 1
       },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
@@ -393,12 +411,12 @@ export default function SmartPerformanceDashboard() {
   // 导出
   const exportData = () => {
     const rows = filteredData.map(d => ({
-      '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
+      '日期': d.date, '时段': d.timeSlot, '班次': d.shift, '频次': d.freq,
       '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
       '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
       '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
       '管理薪资': d.manageSalary.toFixed(2), '其他成本': d.otherCost.toFixed(2),
-      '总收入': d.totalRevenue.toFixed(2), '总薪资': d.totalSalary.toFixed(2), '利润': d.totalProfit.toFixed(2)
+      '总收入': (d.packageRevenue + d.loopRevenue).toFixed(2), '总薪资': (d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary).toFixed(2), '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -472,42 +490,8 @@ export default function SmartPerformanceDashboard() {
                 <input type="file" accept=".xlsx,.xls" onChange={handleUpload} className="hidden" />
               </label>
               <div className="text-sm text-slate-600">
-                <p className="font-medium">表头：日期 | 时段 | 班次 | 管理人数 | 卸车量/人数 | 集包量/人数 | 环线量/人数 | 特快 | 文件 | 发验 | 客服 | 接发员</p>
+                <p className="font-medium">表头：日期 | 时段 | 班次 | 频次 | 卸车量 | 环线量 | 集包量 | 管理人数 | 卸车/集包/环线人数 | 文件/发验/客服/接发员</p>
                 <p className="text-xs mt-1">收入公式：集包量×0.06859 | 环线量×0.276355</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* 班次人数配置 */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              班次人数配置
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <span className="w-20 text-sm font-medium">白班人数</span>
-                <Input
-                  type="number"
-                  value={staffConfig.white}
-                  onChange={e => setStaffConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
-                  className="w-28"
-                />
-                <span className="text-sm text-slate-500">(07:00-18:00)</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="w-20 text-sm font-medium">夜班人数</span>
-                <Input
-                  type="number"
-                  value={staffConfig.night}
-                  onChange={e => setStaffConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
-                  className="w-28"
-                />
-                <span className="text-sm text-slate-500">(18:00-07:00)</span>
               </div>
             </div>
           </CardContent>
