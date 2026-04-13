@@ -14,12 +14,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
-  // Netlify 部署配置
-  trailingSlash: false,
-  
-  // 输出配置 - Netlify 需要
-  output: 'standalone',
 };
 
 export default nextConfig;
