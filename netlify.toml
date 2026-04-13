@@ -1,9 +1,24 @@
 [build]
-  command = "pnpm install && pnpm build"
+  command = "pnpm install && pnpm next build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# 重定向所有页面请求到 Next.js
+[[redirects]]
+  from = "/*"
+  to = "/"
+  status = 200
+
+# API 路由重定向（如果使用 API）
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
