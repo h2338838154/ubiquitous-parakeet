@@ -1,9 +1,10 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
-  /* config options here */
+  // 允许的开发环境域名
   allowedDevOrigins: ['*.dev.coze.site'],
+  
+  // 图片配置
   images: {
     remotePatterns: [
       {
@@ -13,6 +14,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  
+  // Netlify 部署配置
+  trailingSlash: false,
+  
+  // 输出配置 - Netlify 需要
+  output: 'standalone',
 };
 
 export default nextConfig;

@@ -5,11 +5,34 @@
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_PRIVATE_TARGET = "standalone"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Next.js 页面重定向
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# SPA fallback - 所有路由回退到 index.html
 [[redirects]]
-  from = "/*"
-  to = "/"
+  from = "/:path*"
+  to = "/index.html"
+  status = 200
+  conditions = {Language = ["en"]}
+
+[[redirects]]
+  from = "/:path*"
+  to = "/index.html"
+  status = 200
+  conditions = {Language = ["zh"]}
+
+[[redirects]]
+  from = "/:path*"
+  to = "/index.html"
   status = 200
