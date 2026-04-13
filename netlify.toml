@@ -1,6 +1,8 @@
 [build]
   command = "pnpm install && pnpm next build"
   publish = ".next"
+  # 指定项目根目录（如果项目在子目录中）
+  base = "/"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -13,10 +15,3 @@
   from = "/*"
   to = "/"
   status = 200
-
-[[headers]]
-  for = "/api/*"
-  [[headers.values]]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
