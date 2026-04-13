@@ -19,10 +19,10 @@ import {
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { 
-  saveLogisticsData, loadLogisticsData, saveShiftConfig,
-  loadShiftConfigCloud, saveAllShiftConfigsCloud,
+  saveLogisticsData, loadLogisticsData,
+  loadShiftConfigCloud, saveAllShiftConfigsCloud, saveShiftConfigLocal,
   clearLogisticsData, clearShiftConfigs, clearAllCloudData,
-  type LogisticsDataRow, type DailyStaffConfig, dateToExcelSerial, excelSerialToDate
+  type LogisticsDataRow, dateToExcelSerial, excelSerialToDate
 } from '@/lib/supabase-client';
 
 // ============ 类型定义 ============
@@ -500,13 +500,7 @@ export default function SmartPerformanceDashboard() {
       }
       
       // 保存班次配置到 localStorage (按日期存储)
-      saveShiftConfig({
-        date: configDate,
-        configs: staffConfig,
-        white: staffConfig[configDate]?.white ?? 70,
-        middle: staffConfig[configDate]?.middle ?? 0,
-        night: staffConfig[configDate]?.night ?? 95
-      });
+      saveShiftConfigLocal(staffConfig);
       
       // 同时保存班次配置到云端
       const cloudConfigResult = await saveAllShiftConfigsCloud(staffConfig);
