@@ -1,8 +1,6 @@
 [build]
   command = "pnpm install && pnpm next build"
   publish = ".next"
-  # 指定项目根目录（如果项目在子目录中）
-  base = "/"
 
 [build.environment]
   NODE_VERSION = "20"
