@@ -9,16 +9,14 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# 重定向所有页面请求到 Next.js
 [[redirects]]
   from = "/*"
   to = "/"
   status = 200
 
-# API 路由重定向（如果使用 API）
 [[headers]]
   for = "/api/*"
-  [headers.values]
+  [[headers.values]]
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
