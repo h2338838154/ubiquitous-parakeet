@@ -30,7 +30,6 @@ interface UploadedData {
   date: string;
   timeSlot: string;
   shift: string;
-  freq: string;
   unloadCount: number;
   loopCount: number;
   packageCount: number;
@@ -274,28 +273,28 @@ function getDefaultStaffConfig(): StaffConfig {
 
 // ============ 示例数据（默认展示） ============
 const EXAMPLE_DATA: UploadedData[] = [
-  { date: '2026-04-01', timeSlot: '0000-0100', shift: '夜班', freq: '进口', unloadCount: 16991, loopCount: 1608, packageCount: 6568, manageCount: 2, unloadStaff: 18, packageStaff: 22, loopStaff: 28, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '0100-0200', shift: '夜班', freq: '进口', unloadCount: 12453, loopCount: 1245, packageCount: 4321, manageCount: 2, unloadStaff: 15, packageStaff: 18, loopStaff: 24, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '0200-0300', shift: '夜班', freq: '进口', unloadCount: 9876, loopCount: 987, packageCount: 3456, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '0700-0800', shift: '白班', freq: '进口', unloadCount: 1064, loopCount: 1528, packageCount: 246, manageCount: 4, unloadStaff: 5, packageStaff: 3, loopStaff: 6, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '0800-0900', shift: '白班', freq: '进口', unloadCount: 5592, loopCount: 3243, packageCount: 4179, manageCount: 4, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '0900-1000', shift: '白班', freq: '进口', unloadCount: 4321, loopCount: 2567, packageCount: 3210, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1000-1100', shift: '白班', freq: '进口', unloadCount: 3654, loopCount: 1987, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1100-1200', shift: '白班', freq: '进口', unloadCount: 2987, loopCount: 1654, packageCount: 2109, manageCount: 4, unloadStaff: 5, packageStaff: 6, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1200-1300', shift: '白班', freq: '进口', unloadCount: 3456, loopCount: 1876, packageCount: 2543, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1300-1400', shift: '白班', freq: '进口', unloadCount: 4123, loopCount: 2234, packageCount: 3098, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1400-1500', shift: '白班', freq: '进口', unloadCount: 3876, loopCount: 2098, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1500-1600', shift: '白班', freq: '进口', unloadCount: 3543, loopCount: 1876, packageCount: 2654, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1800-1900', shift: '夜班', freq: '进口', unloadCount: 5432, loopCount: 2876, packageCount: 3987, manageCount: 2, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '1900-2000', shift: '夜班', freq: '进口', unloadCount: 7654, loopCount: 3876, packageCount: 5432, manageCount: 2, unloadStaff: 10, packageStaff: 12, loopStaff: 15, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '2000-2100', shift: '夜班', freq: '进口', unloadCount: 9876, loopCount: 4654, packageCount: 6876, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 18, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-01', timeSlot: '2100-2200', shift: '夜班', freq: '进口', unloadCount: 11234, loopCount: 5432, packageCount: 7890, manageCount: 2, unloadStaff: 14, packageStaff: 18, loopStaff: 22, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '0000-0100', shift: '夜班', freq: '进口', unloadCount: 14567, loopCount: 1543, packageCount: 5987, manageCount: 2, unloadStaff: 16, packageStaff: 20, loopStaff: 25, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '0800-0900', shift: '白班', freq: '进口', unloadCount: 6234, loopCount: 3543, packageCount: 4654, manageCount: 4, unloadStaff: 9, packageStaff: 11, loopStaff: 14, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '0900-1000', shift: '白班', freq: '进口', unloadCount: 4876, loopCount: 2765, packageCount: 3543, manageCount: 4, unloadStaff: 7, packageStaff: 9, loopStaff: 11, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '1000-1100', shift: '白班', freq: '进口', unloadCount: 4123, loopCount: 2234, packageCount: 2987, manageCount: 4, unloadStaff: 6, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '1900-2000', shift: '夜班', freq: '进口', unloadCount: 8234, loopCount: 4123, packageCount: 5876, manageCount: 2, unloadStaff: 11, packageStaff: 13, loopStaff: 16, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
-  { date: '2026-04-02', timeSlot: '2000-2100', shift: '夜班', freq: '进口', unloadCount: 10654, loopCount: 5098, packageCount: 7432, manageCount: 2, unloadStaff: 13, packageStaff: 16, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0000-0100', shift: '夜班', unloadCount: 16991, loopCount: 1608, packageCount: 6568, manageCount: 2, unloadStaff: 18, packageStaff: 22, loopStaff: 28, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0100-0200', shift: '夜班', unloadCount: 12453, loopCount: 1245, packageCount: 4321, manageCount: 2, unloadStaff: 15, packageStaff: 18, loopStaff: 24, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0200-0300', shift: '夜班', unloadCount: 9876, loopCount: 987, packageCount: 3456, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0700-0800', shift: '白班', unloadCount: 1064, loopCount: 1528, packageCount: 246, manageCount: 4, unloadStaff: 5, packageStaff: 3, loopStaff: 6, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0800-0900', shift: '白班', unloadCount: 5592, loopCount: 3243, packageCount: 4179, manageCount: 4, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '0900-1000', shift: '白班', unloadCount: 4321, loopCount: 2567, packageCount: 3210, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1000-1100', shift: '白班', unloadCount: 3654, loopCount: 1987, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1100-1200', shift: '白班', unloadCount: 2987, loopCount: 1654, packageCount: 2109, manageCount: 4, unloadStaff: 5, packageStaff: 6, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1200-1300', shift: '白班', unloadCount: 3456, loopCount: 1876, packageCount: 2543, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1300-1400', shift: '白班', unloadCount: 4123, loopCount: 2234, packageCount: 3098, manageCount: 4, unloadStaff: 7, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1400-1500', shift: '白班', unloadCount: 3876, loopCount: 2098, packageCount: 2876, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 9, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1500-1600', shift: '白班', unloadCount: 3543, loopCount: 1876, packageCount: 2654, manageCount: 4, unloadStaff: 6, packageStaff: 7, loopStaff: 8, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1800-1900', shift: '夜班', unloadCount: 5432, loopCount: 2876, packageCount: 3987, manageCount: 2, unloadStaff: 8, packageStaff: 10, loopStaff: 12, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '1900-2000', shift: '夜班', unloadCount: 7654, loopCount: 3876, packageCount: 5432, manageCount: 2, unloadStaff: 10, packageStaff: 12, loopStaff: 15, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '2000-2100', shift: '夜班', unloadCount: 9876, loopCount: 4654, packageCount: 6876, manageCount: 2, unloadStaff: 12, packageStaff: 15, loopStaff: 18, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-01', timeSlot: '2100-2200', shift: '夜班', unloadCount: 11234, loopCount: 5432, packageCount: 7890, manageCount: 2, unloadStaff: 14, packageStaff: 18, loopStaff: 22, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0000-0100', shift: '夜班', unloadCount: 14567, loopCount: 1543, packageCount: 5987, manageCount: 2, unloadStaff: 16, packageStaff: 20, loopStaff: 25, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0800-0900', shift: '白班', unloadCount: 6234, loopCount: 3543, packageCount: 4654, manageCount: 4, unloadStaff: 9, packageStaff: 11, loopStaff: 14, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '0900-1000', shift: '白班', unloadCount: 4876, loopCount: 2765, packageCount: 3543, manageCount: 4, unloadStaff: 7, packageStaff: 9, loopStaff: 11, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '1000-1100', shift: '白班', unloadCount: 4123, loopCount: 2234, packageCount: 2987, manageCount: 4, unloadStaff: 6, packageStaff: 8, loopStaff: 10, fileStaff: 0, inspectStaff: 2, serviceStaff: 2, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '1900-2000', shift: '夜班', unloadCount: 8234, loopCount: 4123, packageCount: 5876, manageCount: 2, unloadStaff: 11, packageStaff: 13, loopStaff: 16, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
+  { date: '2026-04-02', timeSlot: '2000-2100', shift: '夜班', unloadCount: 10654, loopCount: 5098, packageCount: 7432, manageCount: 2, unloadStaff: 13, packageStaff: 16, loopStaff: 20, fileStaff: 4, inspectStaff: 3, serviceStaff: 0, receiveStaff: 1 },
 ];
 
 // ============ 计算公式 ============
@@ -485,7 +484,6 @@ export default function SmartPerformanceDashboard() {
               date: parseDateValue(row['日期']),
               timeSlot: row['时段'],
               shift: row['班次'] || '白班',
-              freq: row['频次'] || '',
               unloadCount: row['卸车量'] || 0,
               loopCount: row['环线量'] || 0,
               packageCount: row['集包量'] || 0,
@@ -496,7 +494,7 @@ export default function SmartPerformanceDashboard() {
               fileStaff: row['文件人数'] || 0,
               inspectStaff: row['发验人数'] || 0,
               serviceStaff: row['客服人数'] || 0,
-              receiveStaff: 0
+              receiveStaff: row['接发员'] || 0
             }));
             setUploadedData(parsed);
             setHasCloudData(true);
@@ -582,7 +580,6 @@ export default function SmartPerformanceDashboard() {
             date: dateStr,
             timeSlot: row['时段'],
             shift: row['班次'] || '白班',
-            freq: row['频次'] || '',
             unloadCount: row['卸车量'] || 0,
             loopCount: row['环线量'] || 0,
             packageCount: row['集包量'] || 0,
@@ -593,7 +590,7 @@ export default function SmartPerformanceDashboard() {
             fileStaff: row['文件人数'] || 0,
             inspectStaff: row['发验人数'] || 0,
             serviceStaff: row['客服人数'] || 0,
-            receiveStaff: 0
+            receiveStaff: row['接发员'] || 0
           };
         });
         setUploadedData(parsed);
@@ -658,7 +655,6 @@ export default function SmartPerformanceDashboard() {
         '日期': dateToExcelSerial(d.date),
         '时段': d.timeSlot,
         '班次': d.shift,
-        '频次': d.freq,
         '卸车量': d.unloadCount,
         '环线量': d.loopCount,
         '集包量': d.packageCount,
@@ -668,18 +664,17 @@ export default function SmartPerformanceDashboard() {
         '卸车薪资': Math.round(d.unloadSalary * 100) / 100,
         '卸车盈亏': Math.round(d.unloadProfit * 100) / 100,
         '集包人数': d.packageStaff,
-        '集包单价': PACKAGE_UNIT_PRICE,
         '集包收入': Math.round(d.packageRevenue * 100) / 100,
         '集包薪资': Math.round(d.packageSalary * 100) / 100,
         '集包盈亏': Math.round(d.packageProfit * 100) / 100,
         '环线人数': d.loopStaff,
-        '环线单价': LOOP_UNIT_PRICE,
         '环线收入': Math.round(d.loopRevenue * 100) / 100,
         '环线薪资': Math.round(d.loopSalary * 100) / 100,
         '环线盈亏': Math.round(d.loopProfit * 100) / 100,
         '文件人数': d.fileStaff,
         '发验人数': d.inspectStaff,
         '客服人数': d.serviceStaff,
+        '接发员': d.receiveStaff,
         '总成本': Math.round(d.totalCost * 100) / 100,
         '总盈亏': Math.round(d.totalProfit * 100) / 100,
         '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff

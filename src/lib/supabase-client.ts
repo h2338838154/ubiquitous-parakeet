@@ -33,28 +33,22 @@ export function excelSerialToDate(serial: number): string {
 // 适配用户现有表结构
 export interface LogisticsDataRow {
   sync_id: string;
-  日期: number | string;  // 可能是Excel序列号或字符串
+  日期: number | string;  // Excel序列号
   时段: string;
   班次: string;
-  频次: string;
   卸车量: number;
   环线量: number;
   集包量: number;
   管理: number;
   管理薪资: number;
   卸车人数: number;
-  卸车人效: number;
   卸车薪资: number;
   卸车盈亏: number;
   集包人数: number;
-  集包人效: number;
-  集包单价: number;
   集包收入: number;
   集包薪资: number;
   集包盈亏: number;
   环线人数: number;
-  环线人效: number;
-  环线单价: number;
   环线收入: number;
   环线薪资: number;
   环线盈亏: number;
@@ -64,7 +58,6 @@ export interface LogisticsDataRow {
   接发员: number;
   总成本: number;
   总盈亏: number;
-  人数验证: number;
   总表人数: number;
   updated_at?: string;
 }
