@@ -99,7 +99,7 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   try {
     for (const record of data) {
       const { error } = await supabase
-        .from('logistics_data')
+        .from('business_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -122,7 +122,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   
   try {
     const { data, error } = await supabase
-      .from('logistics_data')
+      .from('business_data')
       .select('*')
       .order('date', { ascending: false });
     
@@ -145,7 +145,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
   
   try {
-    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
+    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
     if (error) {
       console.warn('Clear warning:', error);
     }
@@ -192,14 +192,14 @@ export function loadShiftConfigLocal(): DailyStaffConfig | null {
   return null;
 }
 
-// 批量保存所有班次配置到云端（使用 logistics_data 表存储）
+// 批量保存所有班次配置到云端（使用 business_data 表存储）
 export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
   if (!supabase) {
     return { success: false, error: '云端连接不可用' };
   }
   
   try {
-    // 使用 logistics_data 表存储班次配置
+    // 使用 business_data 表存储班次配置
     // date = 日期, time_slot = '班次配置', shift_type = '配置'
     // unload_count = 白班人数, loop_count = 中班人数, package_count = 夜班人数
     const records = Object.entries(configs).map(([dateStr, config]) => ({
@@ -214,7 +214,7 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
 
     for (const record of records) {
       const { error } = await supabase
-        .from('logistics_data')
+        .from('business_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -236,7 +236,7 @@ export async function loadShiftConfigCloud(dateStr?: string): Promise<{ data: Da
   
   try {
     let query = supabase
-      .from('logistics_data')
+      .from('business_data')
       .select('date, unload_count, loop_count, package_count')
       .eq('time_slot', '班次配置');
 
@@ -281,7 +281,7 @@ export async function clearShiftConfigs(): Promise<{ success: boolean; error?: s
   
   try {
     const { error } = await supabase
-      .from('logistics_data')
+      .from('business_data')
       .delete()
       .eq('time_slot', '班次配置');
     if (error && Object.keys(error).length > 0) {
@@ -300,7 +300,7 @@ export async function clearAllCloudData(): Promise<{ success: boolean; error?: s
   }
   
   try {
-    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
+    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear all data warning:', error);
     }
