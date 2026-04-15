@@ -8,7 +8,16 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 let supabase: SupabaseClient | null = null;
 
 if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    db: {
+      schema: 'public'
+    },
+    global: {
+      headers: {
+        'apikey': supabaseAnonKey
+      }
+    }
+  });
 }
 
 export { supabase };
