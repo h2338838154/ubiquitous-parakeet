@@ -993,13 +993,21 @@ export default function SmartPerformanceDashboard() {
   
   const revenueDetailData = useMemo(() => filteredData.map(d => ({
     name: d.timeSlot,
+    班次: d.shift,
     集包收入: Math.round(d.packageRevenue),
     环线收入: Math.round(d.loopRevenue),
+    总收入: Math.round(d.packageRevenue + d.loopRevenue),
     卸车成本: Math.round(d.unloadSalary),
     集包成本: Math.round(d.packageSalary),
     环线成本: Math.round(d.loopSalary),
     管理成本: Math.round(d.manageSalary),
-    总成本: Math.round(d.totalCost)
+    社保: Math.round(d.socialSecurity),
+    客服: Math.round(d.serviceCost),
+    商业险: Math.round(d.commercialInsurance),
+    工单理赔: Math.round(d.orderClaim),
+    考核: Math.round(d.assessAmount),
+    总成本: Math.round(d.totalCost),
+    利润: Math.round(d.totalProfit)
   })), [filteredData]);
   
   // Excel上传
@@ -1775,49 +1783,55 @@ export default function SmartPerformanceDashboard() {
                         <Table>
                           <TableHeader className="sticky top-0 bg-slate-800/90 backdrop-blur-sm z-10">
                             <TableRow className="border-slate-700/50">
-                              <TableHead className="font-bold text-xs px-2 py-2 text-slate-300">时段</TableHead>
-                              <TableHead className="font-bold text-xs px-2 py-2 text-slate-300">班</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">卸量</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">卸人</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-red-400">卸薪</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">包量</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">包人</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-400">包收</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-red-400">包薪</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">包盈</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">环量</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">环人</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-emerald-400">环收</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-red-400">环薪</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">环盈</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-red-400">管薪</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-red-400">总成本</TableHead>
-                              <TableHead className="text-right font-bold text-xs px-2 py-2 text-slate-300">利润</TableHead>
+                              <TableHead className="font-bold text-xs px-1 py-1.5 text-slate-300">时段</TableHead>
+                              <TableHead className="font-bold text-xs px-1 py-1.5 text-slate-300">班</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">卸量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">卸人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-red-400">卸薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">包量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">包人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-emerald-400">包收</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-red-400">包薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">环量</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">环人</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-emerald-400">环收</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-red-400">环薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-red-400">管薪</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-orange-400">社保</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-orange-400">客服</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-orange-400">商险</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-orange-400">理赔</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-orange-400">考核</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-red-400">总成本</TableHead>
+                              <TableHead className="text-right font-bold text-xs px-1 py-1.5 text-slate-300">利润</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {filteredData.length === 0 ? (
-                              <TableRow><TableCell colSpan={18} className="text-center py-8 text-slate-400">暂无数据</TableCell></TableRow>
+                              <TableRow><TableCell colSpan={20} className="text-center py-8 text-slate-400">暂无数据</TableCell></TableRow>
                             ) : filteredData.map((d, i) => (
                               <TableRow key={i} className={i % 2 === 0 ? 'bg-slate-800/30' : 'bg-slate-800/10 hover:bg-slate-700/50'}>
-                                <TableCell className="font-medium text-xs px-2 py-2 text-slate-200">{d.timeSlot}</TableCell>
-                                <TableCell className="px-2 py-2"><Badge className={`text-xs ${d.shift === '白班' ? 'bg-amber-500' : 'bg-slate-600'}`}>{d.shift === '白班' ? '白' : d.shift === '中班' ? '中' : '夜'}</Badge></TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.unloadCount.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.unloadStaff}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-red-400">¥{d.unloadSalary.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.packageCount.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.packageStaff}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-emerald-400">¥{d.packageRevenue.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-red-400">¥{d.packageSalary.toFixed(0)}</TableCell>
-                                <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.packageProfit)}`}>¥{d.packageProfit.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.loopCount.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-slate-300">{d.loopStaff}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-emerald-400">¥{d.loopRevenue.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-red-400">¥{d.loopSalary.toFixed(0)}</TableCell>
-                                <TableCell className={`text-right font-medium text-xs px-2 py-2 ${getColor(d.loopProfit)}`}>¥{d.loopProfit.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-red-400">¥{d.manageSalary.toFixed(0)}</TableCell>
-                                <TableCell className="text-right text-xs px-2 py-2 text-red-400">¥{d.totalCost.toFixed(0)}</TableCell>
-                                <TableCell className={`text-right font-bold text-sm px-2 py-2 ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
+                                <TableCell className="font-medium text-xs px-1 py-1.5 text-slate-200">{d.timeSlot}</TableCell>
+                                <TableCell className="px-1 py-1.5"><Badge className={`text-xs ${d.shift === '白班' ? 'bg-amber-500' : 'bg-slate-600'}`}>{d.shift === '白班' ? '白' : d.shift === '中班' ? '中' : '夜'}</Badge></TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.unloadCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.unloadStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-red-400">¥{d.unloadSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.packageCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.packageStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-emerald-400">¥{d.packageRevenue.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-red-400">¥{d.packageSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.loopCount.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-slate-300">{d.loopStaff}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-emerald-400">¥{d.loopRevenue.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-red-400">¥{d.loopSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-red-400">¥{d.manageSalary.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-orange-400">¥{d.socialSecurity.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-orange-400">¥{d.serviceCost.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-orange-400">¥{d.commercialInsurance.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-orange-400">¥{d.orderClaim.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-orange-400">¥{d.assessAmount.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-xs px-1 py-1.5 text-red-400">¥{d.totalCost.toFixed(0)}</TableCell>
+                                <TableCell className={`text-right font-bold text-xs px-1 py-1.5 ${getColor(d.totalProfit)}`}>¥{d.totalProfit.toFixed(0)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -1885,7 +1899,7 @@ export default function SmartPerformanceDashboard() {
                           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
                             <BarChart3 className="w-4 h-4 text-white" />
                           </div>
-                          <span className="font-semibold text-slate-200 text-sm">图表筛选</span>
+                          <span className="font-semibold text-slate-200 text-sm">数据看板</span>
                         </div>
                         <Select value={selectedDate} onValueChange={setSelectedDate}>
                           <SelectTrigger className="w-32 sm:w-40 bg-slate-700/50 border-slate-600 text-slate-200">
@@ -1907,182 +1921,298 @@ export default function SmartPerformanceDashboard() {
                             <SelectItem value="夜班" className="text-slate-200 hover:bg-slate-700">夜班</SelectItem>
                           </SelectContent>
                         </Select>
-                        {/* 白班/夜班快捷筛选 */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedShift(selectedShift === '白班' ? 'all' : '白班')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                              selectedShift === '白班' 
-                                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30' 
-                                : 'bg-slate-700 text-slate-300 hover:bg-amber-500/20 hover:text-amber-300'
-                            }`}
-                          >
-                            <Sun className="w-3.5 h-3.5" />
-                            白班
-                          </button>
-                          <button
-                            onClick={() => setSelectedShift(selectedShift === '夜班' ? 'all' : '夜班')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                              selectedShift === '夜班' 
-                                ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md shadow-slate-500/30' 
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                            }`}
-                          >
-                            <Moon className="w-3.5 h-3.5" />
-                            夜班
-                          </button>
-                        </div>
                         <Badge variant="outline" className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs sm:text-sm px-2 sm:px-3 py-1">{filteredData.length}条</Badge>
                       </div>
                     </CardContent>
                   </Card>
                   
-                  {/* 图表区域 - 两列布局 */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                    {/* 左列 */}
-                    <div className="space-y-4 sm:space-y-6">
-                      {/* 业务量占比 */}
-                      <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white py-3 px-4 border-b border-slate-700/30">
-                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-                            业务量占比
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                            <ResponsiveContainer>
-                              <PieChart>
-                                <Pie data={pieData} cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`} labelLine={false}>
-                                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                                </Pie>
-                                <Tooltip formatter={(v: number) => v.toLocaleString()} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
-                                <Legend wrapperStyle={{ color: '#e2e8f0' }} />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      {/* 成本结构 - 折线图 */}
-                      <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-rose-600/80 to-red-600/80 text-white py-3 px-4 border-b border-slate-700/30">
-                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                            成本结构趋势
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                            <ResponsiveContainer>
-                              <LineChart data={revenueDetailData.slice(0, 12)}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} interval={0} angle={-30} textAnchor="end" height={50} />
-                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
-                                <Tooltip formatter={(v: number) => `¥${v}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
-                                <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
-                                <Line type="monotone" dataKey="卸车成本" stroke={COLORS.unload} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="集包成本" stroke={COLORS.packageCost} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="环线成本" stroke={COLORS.loopCost} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="总成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                    
-                    {/* 右列 */}
-                    <div className="space-y-4 sm:space-y-6">
-                      {/* 收入明细趋势 */}
-                      <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-cyan-600/80 to-teal-600/80 text-white py-3 px-4 border-b border-slate-700/30">
-                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                            收入明细趋势
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                            <ResponsiveContainer>
-                              <LineChart data={revenueDetailData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} interval={0} angle={-30} textAnchor="end" height={50} />
-                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
-                                <Tooltip formatter={(v: number) => `¥${v}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
-                                <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
-                                <Line type="monotone" dataKey="集包收入" stroke={COLORS.package} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="环线收入" stroke={COLORS.loop} strokeWidth={2} dot={{ r: 3 }} />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      {/* 利润趋势 */}
-                      <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-emerald-600/80 to-green-600/80 text-white py-3 px-4 border-b border-slate-700/30">
-                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                            利润趋势
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                            <ResponsiveContainer>
-                              <AreaChart data={profitTrendData}>
-                                <defs>
-                                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.4} />
-                                    <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
-                                  </linearGradient>
-                                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                                  </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} interval={0} angle={-30} textAnchor="end" height={50} />
-                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
-                                <Tooltip formatter={(v: number) => `¥${v}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
-                                <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
-                                <Area type="monotone" dataKey="利润" stroke={COLORS.success} fill="url(#colorProfit)" strokeWidth={2} />
-                                <Area type="monotone" dataKey="收入" stroke={COLORS.primary} fill="url(#colorRevenue)" strokeWidth={2} />
-                              </AreaChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      {/* 各时段利润对比 */}
-                      <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-amber-600/80 to-orange-600/80 text-white py-3 px-4 border-b border-slate-700/30">
-                          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-                            时段利润对比
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="h-[280px] sm:h-[320px] md:h-[350px]">
-                            <ResponsiveContainer>
-                              <BarChart data={hourlyProfitData} barCategoryGap="15%">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: '#94a3b8' }} />
-                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
-                                <Tooltip formatter={(v: number) => `¥${v}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
-                                <Bar dataKey="利润" fill={COLORS.success}>
-                                  {hourlyProfitData.map((entry, i) => (
-                                    <Cell key={i} fill={entry.利润 >= 0 ? COLORS.success : COLORS.danger} />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                  {/* 智能分析概览卡片 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    <Card className="bg-gradient-to-br from-cyan-600/80 to-blue-600/80 border-cyan-500/30 shadow-lg">
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">总收入</p>
+                        <p className="text-lg font-bold">¥{(stats.totalRevenue || 0).toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-red-600/80 to-rose-600/80 border-red-500/30 shadow-lg">
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">总成本</p>
+                        <p className="text-lg font-bold">¥{(stats.totalCost || 0).toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={`bg-gradient-to-br ${(stats.totalProfit || 0) >= 0 ? 'from-emerald-600/80 to-green-600/80 border-emerald-500/30' : 'from-orange-600/80 to-red-600/80 border-orange-500/30'} shadow-lg`}>
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">净利润</p>
+                        <p className="text-lg font-bold">¥{(stats.totalProfit || 0).toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-amber-600/80 to-orange-600/80 border-amber-500/30 shadow-lg">
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">利润率</p>
+                        <p className="text-lg font-bold">{stats.totalRevenue > 0 ? ((stats.totalProfit / stats.totalRevenue) * 100).toFixed(1) : 0}%</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-violet-600/80 to-purple-600/80 border-violet-500/30 shadow-lg">
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">人效(件/人)</p>
+                        <p className="text-lg font-bold">{stats.totalPackage > 0 && filteredData.reduce((s, d) => s + d.unloadStaff + d.packageStaff + d.loopStaff, 0) > 0 
+                          ? Math.round(stats.totalPackage / filteredData.reduce((s, d) => s + d.unloadStaff + d.packageStaff + d.loopStaff, 0)).toLocaleString() 
+                          : 0}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-teal-600/80 to-cyan-600/80 border-teal-500/30 shadow-lg">
+                      <CardContent className="p-3 text-center text-white">
+                        <p className="text-xs opacity-80">人均利润</p>
+                        <p className="text-lg font-bold">{filteredData.reduce((s, d) => s + d.unloadStaff + d.packageStaff + d.loopStaff, 0) > 0 
+                          ? Math.round((stats.totalProfit || 0) / filteredData.reduce((s, d) => s + d.unloadStaff + d.packageStaff + d.loopStaff, 0)).toLocaleString() 
+                          : 0}</p>
+                      </CardContent>
+                    </Card>
                   </div>
+                  
+                  {/* 第一行图表 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* 业务量占比 */}
+                    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <Package className="w-4 h-4" />
+                          业务量占比
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="h-[250px]">
+                          <ResponsiveContainer>
+                            <PieChart>
+                              <Pie data={pieData} cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`} labelLine={false}>
+                                {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                              </Pie>
+                              <Tooltip formatter={(v: number) => v.toLocaleString()} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                              <Legend wrapperStyle={{ color: '#e2e8f0' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* 成本结构占比 */}
+                    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-rose-600/80 to-red-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <PieChart className="w-4 h-4" />
+                          成本结构占比
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="h-[250px]">
+                          <ResponsiveContainer>
+                            <PieChart>
+                              <Pie data={[
+                                { name: '卸车', value: filteredData.reduce((s, d) => s + d.unloadSalary, 0), color: '#ef4444' },
+                                { name: '集包', value: filteredData.reduce((s, d) => s + d.packageSalary, 0), color: '#f97316' },
+                                { name: '环线', value: filteredData.reduce((s, d) => s + d.loopSalary, 0), color: '#eab308' },
+                                { name: '管理', value: filteredData.reduce((s, d) => s + d.manageSalary, 0), color: '#8b5cf6' },
+                                { name: '社保', value: filteredData.reduce((s, d) => s + d.socialSecurity, 0), color: '#06b6d4' },
+                                { name: '客服', value: filteredData.reduce((s, d) => s + d.serviceCost, 0), color: '#10b981' },
+                                { name: '商业险', value: filteredData.reduce((s, d) => s + d.commercialInsurance, 0), color: '#3b82f6' },
+                                { name: '其他', value: filteredData.reduce((s, d) => s + d.orderClaim + d.assessAmount, 0), color: '#6366f1' }
+                              ]} cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name}`} labelLine={false}>
+                                {[
+                                  { name: '卸车', value: filteredData.reduce((s, d) => s + d.unloadSalary, 0), color: '#ef4444' },
+                                  { name: '集包', value: filteredData.reduce((s, d) => s + d.packageSalary, 0), color: '#f97316' },
+                                  { name: '环线', value: filteredData.reduce((s, d) => s + d.loopSalary, 0), color: '#eab308' },
+                                  { name: '管理', value: filteredData.reduce((s, d) => s + d.manageSalary, 0), color: '#8b5cf6' },
+                                  { name: '社保', value: filteredData.reduce((s, d) => s + d.socialSecurity, 0), color: '#06b6d4' },
+                                  { name: '客服', value: filteredData.reduce((s, d) => s + d.serviceCost, 0), color: '#10b981' },
+                                  { name: '商业险', value: filteredData.reduce((s, d) => s + d.commercialInsurance, 0), color: '#3b82f6' },
+                                  { name: '其他', value: filteredData.reduce((s, d) => s + d.orderClaim + d.assessAmount, 0), color: '#6366f1' }
+                                ].map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                              </Pie>
+                              <Tooltip formatter={(v: number) => `¥${v.toLocaleString()}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                              <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* 收支对比 */}
+                    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-emerald-600/80 to-green-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <TrendingUp className="w-4 h-4" />
+                          收支利润对比
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="h-[250px]">
+                          <ResponsiveContainer>
+                            <BarChart data={[{
+                              name: '汇总',
+                              收入: Math.round(stats.totalRevenue || 0),
+                              总成本: Math.round(stats.totalCost || 0),
+                              薪资成本: Math.round(filteredData.reduce((s, d) => s + d.unloadSalary + d.packageSalary + d.loopSalary, 0)),
+                              管理成本: Math.round(filteredData.reduce((s, d) => s + d.manageSalary + d.socialSecurity, 0)),
+                              经营成本: Math.round(filteredData.reduce((s, d) => s + d.serviceCost + d.commercialInsurance + d.orderClaim + d.assessAmount, 0)),
+                              利润: Math.round(stats.totalProfit || 0)
+                            }]} layout="vertical" barCategoryGap="20%">
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                              <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                              <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={50} />
+                              <Tooltip formatter={(v: number) => `¥${v.toLocaleString()}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                              <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
+                              <Bar dataKey="收入" fill="#10b981" stackId="a" />
+                              <Bar dataKey="薪资成本" fill="#ef4444" stackId="a" />
+                              <Bar dataKey="管理成本" fill="#f97316" stackId="a" />
+                              <Bar dataKey="经营成本" fill="#8b5cf6" stackId="a" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* 第二行图表 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* 收入成本趋势 */}
+                    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-cyan-600/80 to-teal-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <TrendingUp className="w-4 h-4" />
+                          收入成本趋势
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="h-[280px]">
+                          <ResponsiveContainer>
+                            <AreaChart data={revenueDetailData.slice(0, 16)}>
+                              <defs>
+                                <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                              <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#94a3b8' }} interval={0} angle={-30} textAnchor="end" height={40} />
+                              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
+                              <Tooltip formatter={(v: number) => `¥${v.toLocaleString()}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                              <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 10 }} />
+                              <Area type="monotone" dataKey="总收入" stroke="#10b981" fill="url(#colorIncome)" strokeWidth={2} />
+                              <Area type="monotone" dataKey="总成本" stroke="#ef4444" fill="url(#colorCost)" strokeWidth={2} />
+                              <Area type="monotone" dataKey="利润" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* 时段利润对比 */}
+                    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-amber-600/80 to-orange-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <BarChart3 className="w-4 h-4" />
+                          各时段利润分布
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="h-[280px]">
+                          <ResponsiveContainer>
+                            <BarChart data={hourlyProfitData} barCategoryGap="10%">
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                              <XAxis dataKey="hour" tick={{ fontSize: 8, fill: '#94a3b8' }} />
+                              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
+                              <Tooltip formatter={(v: number) => `¥${v.toLocaleString()}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                              <Bar dataKey="利润" fill="#10b981">
+                                {hourlyProfitData.map((entry, i) => (
+                                  <Cell key={i} fill={entry.利润 >= 0 ? '#10b981' : '#ef4444'} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* 第三行图表 - 详细成本分析 */}
+                  <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-violet-600/80 to-purple-600/80 text-white py-3 px-4 border-b border-slate-700/30">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <DollarSign className="w-4 h-4" />
+                        详细成本分析
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3">
+                      <div className="h-[300px]">
+                        <ResponsiveContainer>
+                          <LineChart data={revenueDetailData.slice(0, 16)}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#94a3b8' }} interval={0} angle={-30} textAnchor="end" height={40} />
+                            <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
+                            <Tooltip formatter={(v: number) => `¥${v.toLocaleString()}`} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#e2e8f0' }} />
+                            <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: 9 }} />
+                            <Line type="monotone" dataKey="卸车成本" stroke="#ef4444" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="集包成本" stroke="#f97316" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="环线成本" stroke="#eab308" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="管理成本" stroke="#8b5cf6" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="社保" stroke="#06b6d4" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="客服" stroke="#10b981" strokeWidth={1.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="商业险" stroke="#3b82f6" strokeWidth={1.5} dot={{ r: 2 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* 成本汇总统计 */}
+                  <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 shadow-xl overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-slate-600/80 to-slate-700/80 text-white py-3 px-4 border-b border-slate-700/30">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <DollarSign className="w-4 h-4" />
+                        成本费用汇总
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                        <div className="text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                          <p className="text-xs text-slate-400">卸车薪资</p>
+                          <p className="text-sm font-bold text-red-400">¥{filteredData.reduce((s, d) => s + d.unloadSalary, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                          <p className="text-xs text-slate-400">集包薪资</p>
+                          <p className="text-sm font-bold text-orange-400">¥{filteredData.reduce((s, d) => s + d.packageSalary, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                          <p className="text-xs text-slate-400">环线薪资</p>
+                          <p className="text-sm font-bold text-yellow-400">¥{filteredData.reduce((s, d) => s + d.loopSalary, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-violet-500/10 rounded-lg border border-violet-500/20">
+                          <p className="text-xs text-slate-400">管理薪资</p>
+                          <p className="text-sm font-bold text-violet-400">¥{filteredData.reduce((s, d) => s + d.manageSalary, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                          <p className="text-xs text-slate-400">社保</p>
+                          <p className="text-sm font-bold text-cyan-400">¥{filteredData.reduce((s, d) => s + d.socialSecurity, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                          <p className="text-xs text-slate-400">客服成本</p>
+                          <p className="text-sm font-bold text-emerald-400">¥{filteredData.reduce((s, d) => s + d.serviceCost, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                          <p className="text-xs text-slate-400">商业险</p>
+                          <p className="text-sm font-bold text-blue-400">¥{filteredData.reduce((s, d) => s + d.commercialInsurance, 0).toLocaleString()}</p>
+                        </div>
+                        <div className="text-center p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                          <p className="text-xs text-slate-400">工单+考核</p>
+                          <p className="text-sm font-bold text-indigo-400">¥{filteredData.reduce((s, d) => s + d.orderClaim + d.assessAmount, 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </>
               )}
             </div>
