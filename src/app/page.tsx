@@ -48,13 +48,13 @@ interface CalculatedData extends UploadedData {
   whiteStaff: number;
   middleStaff: number;
   nightStaff: number;
-  // 人员成本
-  laborCost: number;        // 劳务成本
-  ownWhiteCost: number;     // 白班自有人员成本
-  ownMiddleCost: number;    // 中班自有人员成本
-  ownNightCost: number;     // 夜班自有人员成本
-  dailyWhiteCost: number;   // 白班日结人员成本
-  dailyNightCost: number;   // 夜班日结人员成本
+  // 成本项
+  laborCost: number;        // 劳务成本（已包含在公式中，此字段为0）
+  ownWhiteCost: number;     // 白班自有人员成本（已包含在公式中，此字段为0）
+  ownMiddleCost: number;    // 中班自有人员成本（单独计算）
+  ownNightCost: number;     // 夜班自有人员成本（已包含在公式中，此字段为0）
+  dailyWhiteCost: number;   // 白班日结人员成本（已包含在公式中，此字段为0）
+  dailyNightCost: number;   // 夜班日结人员成本（已包含在公式中，此字段为0）
   manageSalary: number;     // 管理人员工资
   socialSecurity: number;   // 社保
   businessTax: number;      // 业务税金
@@ -198,39 +198,61 @@ function calcBusinessTax(totalRevenue: number): number {
 }
 
 // 获取该时段各班次的人员配置
+// 逻辑：白中夜班自有、劳务、日结人数合计到公式分配人员
+// 中班根据上班时间分时间段分配到白班和夜班
 function getStaffForTimeSlot(
   timeSlot: string,
   config: StaffConfig
-): { white: number; middle: number; night: number } {
-  const { primary, secondary, middleRatio = 0 } = getShiftType(timeSlot);
+): { white: number; middle: number; night: number; totalFormula: number } {
+  const hour = parseInt(timeSlot.split('-')[0]);
   
-  if (primary === '白班' && secondary === '中班') {
-    // 12:00-18:00：白班全员 + 中班部分
+  // 合计所有人员到公式分配
+  // 白班公式人员 = 白班公式人员 + 白班自有 + 白班劳务 + 白班日结
+  const whiteFormula = config.white + config.ownWhite + config.laborWhite + config.dailyWhite;
+  // 中班公式人员 = 中班公式人员 + 中班自有
+  const middleFormula = config.middle + config.ownMiddle;
+  // 夜班公式人员 = 夜班公式人员 + 夜班自有 + 夜班劳务 + 夜班日结
+  const nightFormula = config.night + config.ownNight + config.laborNight + config.dailyNight;
+  
+  // 根据时段分配中班到白班或夜班
+  // 07:00-12:00：仅白班（不包含中班）
+  if (hour >= 7 && hour < 12) {
     return {
-      white: config.white,
-      middle: Math.round(config.middle * middleRatio),
-      night: 0
+      white: whiteFormula,
+      middle: 0,
+      night: 0,
+      totalFormula: whiteFormula
     };
   }
   
-  if (primary === '夜班' && secondary === '中班') {
-    // 18:00-00:00：夜班全员 + 中班部分
+  // 12:00-18:00：中班分配到白班
+  if (hour >= 12 && hour < 18) {
+    return {
+      white: whiteFormula + middleFormula,
+      middle: 0,
+      night: 0,
+      totalFormula: whiteFormula + middleFormula
+    };
+  }
+  
+  // 18:00-24:00：中班分配到夜班
+  if (hour >= 18 && hour < 24) {
     return {
       white: 0,
-      middle: Math.round(config.middle * middleRatio),
-      night: config.night
+      middle: 0,
+      night: nightFormula + middleFormula,
+      totalFormula: nightFormula + middleFormula
     };
   }
   
-  if (primary === '白班') {
-    return { white: config.white, middle: 0, night: 0 };
-  }
-  
-  if (primary === '夜班') {
-    return { white: 0, middle: 0, night: config.night };
-  }
-  
-  return { white: config.white, middle: 0, night: 0 };
+  // 00:00-07:00：仅夜班（不包含中班）
+  // hour >= 0 && hour < 7
+  return {
+    white: 0,
+    middle: 0,
+    night: nightFormula,
+    totalFormula: nightFormula
+  };
 }
 
 // 获取班次默认配置
@@ -740,8 +762,8 @@ export default function SmartPerformanceDashboard() {
           assessAmount: 0
         };
         
-        // 根据时段获取各班次人员配置
-        const { white: whiteStaff, middle: middleStaff, night: nightStaff } = getStaffForTimeSlot(
+        // 根据时段获取各班次人员配置（已包含所有自有、劳务、日结人员）
+        const { white: whiteStaff, middle: middleStaff, night: nightStaff, totalFormula: totalFormulaStaff } = getStaffForTimeSlot(
           row.timeSlot,
           dateConfig
         );
@@ -750,10 +772,7 @@ export default function SmartPerformanceDashboard() {
         const shiftInfo = getShiftType(row.timeSlot);
         const isOverlapping = shiftInfo.secondary === '中班';
         
-        // 计算总公式人员数（包含中班分配的人员）
-        const totalFormulaStaff = whiteStaff + middleStaff + nightStaff;
-        
-        // 计算总自有人数
+        // 计算总自有人数（用于商业险计算）
         const totalOwnStaff = dateConfig.ownWhite + dateConfig.ownMiddle + dateConfig.ownNight;
         
         // 使用智能分配函数分配卸车、集包、环线人员
@@ -798,25 +817,10 @@ export default function SmartPerformanceDashboard() {
         }
         const loopProfit = loopRevenue - loopSalary;
         
-        // ============ 新增成本项 ============
+        // ============ 新增成本项（自有人员单独计算，其他已包含在公式中）===========
         
-        // 劳务成本（人数 * 18元/小时）
-        const laborCost = calcLaborCost(dateConfig.laborWhite + dateConfig.laborNight);
-        
-        // 白班自有人员成本（160/11 * 人数）
-        const ownWhiteCost = calcOwnWhiteCost(dateConfig.ownWhite);
-        
-        // 中班自有人员成本（按白班计算）
+        // 中班自有人员成本（按白班计算，中班只在12-18或18-24时段使用）
         const ownMiddleCost = calcOwnWhiteCost(dateConfig.ownMiddle);
-        
-        // 夜班自有人员成本（190/13 * 人数）
-        const ownNightCost = calcOwnNightCost(dateConfig.ownNight);
-        
-        // 白班日结人员成本（150/11 * 人数）
-        const dailyWhiteCost = calcDailyWhiteCost(dateConfig.dailyWhite);
-        
-        // 夜班日结人员成本（180/13 * 人数）
-        const dailyNightCost = calcDailyNightCost(dateConfig.dailyNight);
         
         // 客服人员成本 = (4200/30*2)/9 * 人数
         const serviceCost = calcServiceCost(allocation.service);
@@ -831,18 +835,14 @@ export default function SmartPerformanceDashboard() {
         const assessAmount = dateConfig.assessAmount || 0;
         
         // 总成本 = 所有成本项之和（确保都是有效数字）
+        // 注：自有、劳务、日结人员已合计到公式分配，薪资通过卸车/集包/环线公式计算
         const totalCost = 
           Number(unloadSalary || 0) + 
           Number(packageSalary || 0) + 
           Number(loopSalary || 0) + 
           Number(manageSalary || 0) + 
           Number(socialSecurity || 0) +
-          Number(laborCost || 0) +
-          Number(ownWhiteCost || 0) +
           Number(ownMiddleCost || 0) +
-          Number(ownNightCost || 0) +
-          Number(dailyWhiteCost || 0) +
-          Number(dailyNightCost || 0) +
           Number(serviceCost || 0) +
           Number(commercialInsurance || 0) +
           Number(orderClaim || 0) +
@@ -871,17 +871,17 @@ export default function SmartPerformanceDashboard() {
           inspectStaff: allocation.inspect,
           serviceStaff: allocation.service,
           receiveStaff: allocation.receive,
-          // 班次人员
+          // 班次人员（已包含自有、劳务、日结人员）
           whiteStaff,
           middleStaff,
           nightStaff,
           // 成本项
-          laborCost: laborCost || 0,
-          ownWhiteCost: ownWhiteCost || 0,
-          ownMiddleCost: ownMiddleCost || 0,
-          ownNightCost: ownNightCost || 0,
-          dailyWhiteCost: dailyWhiteCost || 0,
-          dailyNightCost: dailyNightCost || 0,
+          laborCost: 0,        // 已包含在公式分配中，不再单独计算
+          ownWhiteCost: 0,     // 已包含在公式分配中，不再单独计算
+          ownMiddleCost: ownMiddleCost || 0,  // 中班自有单独计算
+          ownNightCost: 0,     // 已包含在公式分配中，不再单独计算
+          dailyWhiteCost: 0,   // 已包含在公式分配中，不再单独计算
+          dailyNightCost: 0,   // 已包含在公式分配中，不再单独计算
           manageSalary: manageSalary || 0,
           socialSecurity: socialSecurity || 0,
           businessTax: 0, // 业务税金单独计算
