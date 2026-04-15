@@ -113,9 +113,6 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
 // 班次配置（按日期存储）
 export interface DailyStaffConfig {
   [date: string]: {
-    white: number;
-    middle: number;
-    night: number;
     ownWhite: number;
     ownMiddle: number;
     ownNight: number;
@@ -130,9 +127,6 @@ export interface DailyStaffConfig {
 export interface ShiftConfig {
   date: string;
   configs: DailyStaffConfig;
-  white: number;
-  middle: number;
-  night: number;
   ownWhite: number;
   ownMiddle: number;
   ownNight: number;
@@ -145,9 +139,6 @@ export interface ShiftConfig {
 
 interface ShiftConfigRow {
   date: string;
-  white: number;
-  middle: number;
-  night: number;
   own_white: number;
   own_middle: number;
   own_night: number;
@@ -177,9 +168,6 @@ export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ succe
       .upsert({
         date: config.date,
         config_data: config.configs,
-        white: config.white,
-        middle: config.middle,
-        night: config.night,
         own_white: config.ownWhite,
         own_middle: config.ownMiddle,
         own_night: config.ownNight,
@@ -211,9 +199,6 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
     const records = Object.entries(configs).map(([date, config]) => ({
       date,
       config_data: config,
-      white: config.white,
-      middle: config.middle,
-      night: config.night,
       own_white: config.ownWhite,
       own_middle: config.ownMiddle,
       own_night: config.ownNight,
@@ -274,9 +259,6 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
       const configs: DailyStaffConfig = {};
       data.forEach((row: ShiftConfigRow) => {
         configs[row.date] = {
-          white: row.white ?? 70,
-          middle: row.middle ?? 0,
-          night: row.night ?? 95,
           ownWhite: row.own_white ?? 0,
           ownMiddle: row.own_middle ?? 0,
           ownNight: row.own_night ?? 0,

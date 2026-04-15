@@ -76,10 +76,6 @@ interface CalculatedData extends UploadedData {
 
 // 班次配置接口 - 包含所有人员类型
 interface StaffConfig {
-  // 公式分配人员
-  white: number;    // 白班公式人员
-  middle: number;  // 中班公式人员
-  night: number;   // 夜班公式人员
   // 自有人员
   ownWhite: number;   // 白班自有人员
   ownMiddle: number;  // 中班自有人员
@@ -88,8 +84,8 @@ interface StaffConfig {
   laborWhite: number;  // 白班劳务
   laborNight: number;   // 夜班劳务
   // 日结人员
-  dailyWhite: number;   // 白班日结自有人员
-  dailyNight: number;   // 夜班日结自有人员
+  dailyWhite: number;   // 白班日结人员
+  dailyNight: number;   // 夜班日结人员
   // 考核金额
   assessAmount: number;
 }
@@ -197,7 +193,7 @@ function calcBusinessTax(totalRevenue: number): number {
 }
 
 // 获取该时段各班次的人员配置
-// 逻辑：白中夜班自有、劳务、日结人数合计到公式分配人员
+// 逻辑：白中夜班自有、劳务、日结人数合计
 // 中班根据上班时间分时间段分配到白班和夜班
 function getStaffForTimeSlot(
   timeSlot: string,
@@ -205,13 +201,13 @@ function getStaffForTimeSlot(
 ): { white: number; middle: number; night: number; totalFormula: number } {
   const hour = parseInt(timeSlot.split('-')[0]);
   
-  // 合计所有人员到公式分配
-  // 白班公式人员 = 白班公式人员 + 白班自有 + 白班劳务 + 白班日结
-  const whiteFormula = config.white + config.ownWhite + config.laborWhite + config.dailyWhite;
-  // 中班公式人员 = 中班公式人员 + 中班自有
-  const middleFormula = config.middle + config.ownMiddle;
-  // 夜班公式人员 = 夜班公式人员 + 夜班自有 + 夜班劳务 + 夜班日结
-  const nightFormula = config.night + config.ownNight + config.laborNight + config.dailyNight;
+  // 合计所有人员
+  // 白班人员 = 自有 + 劳务 + 日结
+  const whiteFormula = config.ownWhite + config.laborWhite + config.dailyWhite;
+  // 中班人员 = 自有
+  const middleFormula = config.ownMiddle;
+  // 夜班人员 = 自有 + 劳务 + 日结
+  const nightFormula = config.ownNight + config.laborNight + config.dailyNight;
   
   // 根据时段分配中班到白班或夜班
   // 07:00-12:00：仅白班（不包含中班）
@@ -257,9 +253,6 @@ function getStaffForTimeSlot(
 // 获取班次默认配置
 function getDefaultStaffConfig(): StaffConfig {
   return {
-    white: 70,
-    middle: 0,
-    night: 95,
     ownWhite: 0,
     ownMiddle: 0,
     ownNight: 0,
@@ -505,9 +498,6 @@ export default function SmartPerformanceDashboard() {
             dates.forEach(date => {
               if (!savedStaffConfig[date]) {
                 savedStaffConfig[date] = { 
-                  white: 70, 
-                  middle: 0, 
-                  night: 95,
                   ownWhite: 0,
                   ownMiddle: 0,
                   ownNight: 0,
@@ -692,9 +682,6 @@ export default function SmartPerformanceDashboard() {
       saveShiftConfig({
         date: configDate,
         configs: staffConfig,
-        white: staffConfig[configDate]?.white ?? 70,
-        middle: staffConfig[configDate]?.middle ?? 0,
-        night: staffConfig[configDate]?.night ?? 95,
         ownWhite: staffConfig[configDate]?.ownWhite ?? 0,
         ownMiddle: staffConfig[configDate]?.ownMiddle ?? 0,
         ownNight: staffConfig[configDate]?.ownNight ?? 0,
@@ -750,7 +737,6 @@ export default function SmartPerformanceDashboard() {
         
         // 获取该日期的班次配置，如果没有则使用默认值
         const dateConfig = staffConfig[row.date] || {
-          white: 70, middle: 0, night: 95,
           ownWhite: 0, ownMiddle: 0, ownNight: 0,
           laborWhite: 0, laborNight: 0,
           dailyWhite: 0, dailyNight: 0,
@@ -1087,9 +1073,9 @@ export default function SmartPerformanceDashboard() {
             const updated = { ...prev };
             newDates.forEach(date => {
               updated[date] = { 
-                white: 70, 
-                middle: 0, 
-                night: 95,
+                // white: 70, 
+                // middle: 0, 
+                // night: 95,
                 ownWhite: 0,
                 ownMiddle: 0,
                 ownNight: 0,
@@ -1461,7 +1447,7 @@ export default function SmartPerformanceDashboard() {
                             // 将当前配置的班次人数同步到当天所有班次
                             const currentConfig = staffConfig[configDate] || getDefaultStaffConfig();
                             // 保持当前配置不变，只是标记已应用
-                            setNotification({ type: 'success', message: `班次配置已更新: 白班${currentConfig.white}人/中班${currentConfig.middle}人/夜班${currentConfig.night}人` });
+                            setNotification({ type: 'success', message: `班次配置已更新` });
                           }}
                         >
                           <Save className="w-4 h-4 mr-1" />
@@ -1472,78 +1458,22 @@ export default function SmartPerformanceDashboard() {
                       {(() => {
                         const config = staffConfig[configDate] || getDefaultStaffConfig();
                         // 计算合计人数
-                        const totalWhite = config.white + config.ownWhite + config.laborWhite + config.dailyWhite;
-                        const totalMiddle = config.middle + config.ownMiddle;
-                        const totalNight = config.night + config.ownNight + config.laborNight + config.dailyNight;
+                        const totalWhite = config.ownWhite + config.laborWhite + config.dailyWhite;
+                        const totalMiddle = config.ownMiddle;
+                        const totalNight = config.ownNight + config.laborNight + config.dailyNight;
                         const totalAll = totalWhite + totalMiddle + totalNight;
                         // 计算成本（按小时平均）
-                        const whiteCostPerHour = (config.white + config.ownWhite + config.laborWhite + config.dailyWhite) * (config.white > 0 ? 160/11 : (config.laborWhite > 0 || config.dailyWhite > 0 ? (config.dailyWhite > 0 ? 150/11 : 18) : 0));
-                        const nightCostPerHour = (config.night + config.ownNight + config.laborNight + config.dailyNight) * (config.night > 0 ? 190/13 : (config.laborNight > 0 || config.dailyNight > 0 ? (config.dailyNight > 0 ? 180/13 : 18) : 0));
-                        const middleCostPerHour = config.ownMiddle * (160/11); // 中班按白班费率
+                        // 白班费率：日结>劳务>自有
+                        const whiteRate = config.dailyWhite > 0 ? 150/11 : (config.laborWhite > 0 ? 18 : (config.ownWhite > 0 ? 160/11 : 0));
+                        const whiteCostPerHour = totalWhite * whiteRate;
+                        // 夜班费率：日结>劳务>自有
+                        const nightRate = config.dailyNight > 0 ? 180/13 : (config.laborNight > 0 ? 18 : (config.ownNight > 0 ? 190/13 : 0));
+                        const nightCostPerHour = totalNight * nightRate;
+                        // 中班按白班费率
+                        const middleCostPerHour = totalMiddle * (160/11); // 中班按白班费率
                         const totalCostPerHour = whiteCostPerHour + nightCostPerHour + middleCostPerHour;
                         return (
                           <div className="space-y-4">
-                            {/* 人员输入区域 */}
-                            <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                              <p className="text-xs text-slate-400 mb-3 font-medium flex items-center gap-2">
-                                <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
-                                自有人员配置（公式分配）
-                              </p>
-                              <div className="grid grid-cols-3 gap-3">
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                                      <span className="text-white font-bold text-xs">白</span>
-                                    </div>
-                                    <p className="text-xs text-amber-400">白班</p>
-                                  </div>
-                                  <Input
-                                    type="number"
-                                    value={config.white}
-                                    onChange={e => setStaffConfig(s => ({
-                                      ...s,
-                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], white: Math.max(0, Number(e.target.value) || 0) }
-                                    }))}
-                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                                  />
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                                      <span className="text-white font-bold text-xs">中</span>
-                                    </div>
-                                    <p className="text-xs text-green-400">中班</p>
-                                  </div>
-                                  <Input
-                                    type="number"
-                                    value={config.middle}
-                                    onChange={e => setStaffConfig(s => ({
-                                      ...s,
-                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], middle: Math.max(0, Number(e.target.value) || 0) }
-                                    }))}
-                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                                  />
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
-                                      <span className="text-white font-bold text-xs">夜</span>
-                                    </div>
-                                    <p className="text-xs text-slate-400">夜班</p>
-                                  </div>
-                                  <Input
-                                    type="number"
-                                    value={config.night}
-                                    onChange={e => setStaffConfig(s => ({
-                                      ...s,
-                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], night: Math.max(0, Number(e.target.value) || 0) }
-                                    }))}
-                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
                             {/* 自有人员 */}
                             <div className="p-3 bg-slate-800/50 rounded-xl border border-blue-700/50">
                               <p className="text-xs text-blue-400 mb-3 font-medium flex items-center gap-2">
@@ -1662,7 +1592,7 @@ export default function SmartPerformanceDashboard() {
                             <div className="p-3 bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-cyan-700/50 shadow-lg">
                               <p className="text-xs text-cyan-400 mb-3 font-bold flex items-center gap-2">
                                 <Calculator className="w-4 h-4" />
-                                合计人数（公式分配）
+                                合计人数
                               </p>
                               <div className="grid grid-cols-4 gap-2">
                                 <div className="text-center p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
