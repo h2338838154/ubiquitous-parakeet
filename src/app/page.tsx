@@ -457,11 +457,9 @@ export default function SmartPerformanceDashboard() {
     
     setIsSaving(true);
     try {
-      // 保存业务数据（使用中文列名适配现有表结构）
-      // 日期需要转换为Excel序列号格式
       const logisticsRecords = calculatedData.map(d => ({
         sync_id: `${d.date}_${d.timeSlot}`,
-        '日期': dateToExcelSerial(d.date),
+        '日期': d.date,
         '时段': d.timeSlot,
         '班次': d.shift,
         '频次': d.freq,
