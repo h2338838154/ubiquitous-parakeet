@@ -78,7 +78,7 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   try {
     for (const record of data) {
       const { error } = await supabase
-        .from('business_data')
+        .from('logistics_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -101,7 +101,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   
   try {
     const { data, error } = await supabase
-      .from('business_data')
+      .from('logistics_data')
       .select('*')
       .order('日期', { ascending: true })
       .order('时段', { ascending: true });
@@ -159,7 +159,7 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
   }
   
   try {
-    // 使用 business_data 表存储班次配置
+    // 使用 logistics_data 表存储班次配置
     // 卸车量 = 白班人数, 环线量 = 中班人数, 集包量 = 夜班人数
     // 日期需要转换为 Excel 序列号格式
     const records = Object.entries(configs).map(([date, config]) => ({
@@ -176,7 +176,7 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
     
     for (const record of records) {
       const { error } = await supabase
-        .from('business_data')
+        .from('logistics_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -220,7 +220,7 @@ export function loadShiftConfigLocal(): DailyStaffConfig | null {
   return null;
 }
 
-// 从云端加载班次配置（使用 business_data 表存储）
+// 从云端加载班次配置（使用 logistics_data 表存储）
 export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
   const localData = loadShiftConfigLocal();
   
@@ -230,12 +230,12 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
   }
   
   try {
-    // 使用 business_data 表查询班次配置
+    // 使用 logistics_data 表查询班次配置
     // 时段 = '班次配置' 的记录是班次配置
     // 卸车量 = 白班人数, 环线量 = 中班人数, 集包量 = 夜班人数
-    console.log('[loadShiftConfigCloud] 从 business_data 表加载班次配置...');
+    console.log('[loadShiftConfigCloud] 从 logistics_data 表加载班次配置...');
     const { data, error } = await supabase
-      .from('business_data')
+      .from('logistics_data')
       .select('sync_id, 日期, 时段, 卸车量, 环线量, 集包量')
       .eq('时段', '班次配置')
       .limit(100);
@@ -287,7 +287,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
   
   try {
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
+    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear logistics data warning:', error);
     }
@@ -297,7 +297,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
 }
 
-// 清除班次配置（使用 business_data 表，时段='班次配置'的记录）
+// 清除班次配置（使用 logistics_data 表，时段='班次配置'的记录）
 export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
   if (!supabase) {
     return { success: false, error: '云端连接不可用' };
@@ -305,7 +305,7 @@ export async function clearShiftConfigs(): Promise<{ success: boolean; error?: s
   
   try {
     const { error } = await supabase
-      .from('business_data')
+      .from('logistics_data')
       .delete()
       .eq('时段', '班次配置');
     if (error && Object.keys(error).length > 0) {
@@ -324,8 +324,8 @@ export async function clearAllCloudData(): Promise<{ success: boolean; error?: s
   }
   
   try {
-    // 清除所有 business_data 记录（包括业务数据和班次配置）
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
+    // 清除所有 logistics_data 记录（包括业务数据和班次配置）
+    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear all data warning:', error);
     }
