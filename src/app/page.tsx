@@ -744,13 +744,14 @@ export default function SmartPerformanceDashboard() {
         '环线收入': Math.round(d.loopRevenue * 100) / 100,
         '环线薪资': Math.round(d.loopSalary * 100) / 100,
         '环线盈亏': Math.round(d.loopProfit * 100) / 100,
-        '文件人数': d.fileStaff,
-        '发验人数': d.inspectStaff,
-        '客服人数': d.serviceStaff,
-        '接发员': d.receiveStaff,
+        '文件人数': d.fileStaff || 0,
+        '发验人数': d.inspectStaff || 0,
+        '客服人数': d.serviceStaff || 0,
+        '接发员': d.receiveStaff || 0,
+        '其他成本': Math.round((d.socialSecurity + d.commercialInsurance + d.orderClaim + d.assessAmount) * 100) / 100,
         '总成本': Math.round(d.totalCost * 100) / 100,
         '总盈亏': Math.round(d.totalProfit * 100) / 100,
-        '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
+        '总表人数': (d.unloadStaff || 0) + (d.packageStaff || 0) + (d.loopStaff || 0) + (d.manageCount || 0) + (d.fileStaff || 0) + (d.inspectStaff || 0) + (d.serviceStaff || 0) + (d.receiveStaff || 0)
       }));
       
       // 先清除云端旧数据，再保存新数据（确保数据一致）
