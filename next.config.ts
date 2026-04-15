@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  
+  // 修复锁文件警告
+  outputFileTracingRoot: __dirname,
 };
 
 export default nextConfig;
