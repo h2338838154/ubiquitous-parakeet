@@ -79,3 +79,166 @@ export interface ShiftConfigRow {
   created_at?: string;
   updated_at?: string;
 }
+
+// ==================== 云端数据操作 ====================
+
+// 保存物流数据到云端
+export async function saveLogisticsData(data: LogisticsDataRow[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    
+    for (const record of data) {
+      const { 日期, 时段 } = record;
+      
+      // 检查是否已存在
+      const { data: existing } = await client
+        .from('business_data')
+        .select('id')
+        .eq('日期', 日期)
+        .eq('时段', 时段)
+        .maybeSingle();
+
+      if (existing) {
+        await client
+          .from('business_data')
+          .update({ ...record, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      } else {
+        await client
+          .from('business_data')
+          .insert(record);
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 从云端加载物流数据
+export async function loadLogisticsData(): Promise<{ success: boolean; data?: LogisticsDataRow[]; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('business_data')
+      .select('*')
+      .order('日期', { ascending: true });
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 清空物流数据
+export async function clearLogisticsData(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    const { error } = await client.from('business_data').delete().neq('id', 0);
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// ==================== 班次配置操作 ====================
+
+// 从云端加载班次配置
+export async function loadShiftConfigCloud(): Promise<{ success: boolean; data?: ShiftConfigRow[]; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('shift_config')
+      .select('*')
+      .order('日期', { ascending: true });
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 保存单个班次配置到本地存储
+export function saveShiftConfigLocal(configs: ShiftConfigRow[]): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('shiftConfigs', JSON.stringify(configs));
+  }
+}
+
+// 保存所有班次配置到云端
+export async function saveAllShiftConfigsCloud(configs: ShiftConfigRow[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    
+    // 先清空
+    await client.from('shift_config').delete().neq('id', 0);
+    
+    // 再插入新的
+    if (configs.length > 0) {
+      const { error } = await client
+        .from('shift_config')
+        .insert(configs.map(c => ({
+          日期: c.日期,
+          班次类型: c.班次类型,
+          总人数: c.总人数 || 0,
+          卸车人数: c.卸车人数 || 0,
+          集包人数: c.集包人数 || 0,
+          环线人数: c.环线人数 || 0,
+          管理人数: c.管理人数 || 0,
+          备注: c.备注 || ''
+        })));
+      
+      if (error) {
+        return { success: false, error: error.message };
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 清空班次配置
+export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    const { error } = await client.from('shift_config').delete().neq('id', 0);
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 清空所有云端数据
+export async function clearAllCloudData(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    
+    await client.from('business_data').delete().neq('id', 0);
+    await client.from('shift_config').delete().neq('id', 0);
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
