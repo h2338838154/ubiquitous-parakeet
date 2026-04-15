@@ -45,6 +45,9 @@ interface UploadedData {
 }
 
 interface CalculatedData extends UploadedData {
+  whiteStaff: number;
+  middleStaff: number;
+  nightStaff: number;
   manageSalary: number;
   unloadSalary: number;
   unloadProfit: number;
@@ -83,6 +86,78 @@ const COLORS = {
 // ============ 常量 ============
 const PACKAGE_UNIT_PRICE = 0.06859;
 const LOOP_UNIT_PRICE = 0.276355;
+
+// 班次时间段定义
+// 白班：7:00-18:00
+// 中班：12:00-00:00（次日）
+// 夜班：18:00-次日7:00
+type ShiftType = '白班' | '中班' | '夜班';
+
+// 根据时段判断班次
+function getShiftType(timeSlot: string): { primary: ShiftType; secondary?: ShiftType; middleRatio?: number } {
+  const hour = parseInt(timeSlot.split('-')[0]);
+  
+  // 00:00-07:00：仅夜班
+  if (hour >= 0 && hour < 7) {
+    return { primary: '夜班' };
+  }
+  
+  // 07:00-12:00：仅白班
+  if (hour >= 7 && hour < 12) {
+    return { primary: '白班' };
+  }
+  
+  // 12:00-18:00：白班和中班重叠，中班比例50%
+  if (hour >= 12 && hour < 18) {
+    return { primary: '白班', secondary: '中班', middleRatio: 0.5 };
+  }
+  
+  // 18:00-24:00：中班和夜班重叠，中班比例50%
+  // 注意：hour=24 表示 00:00（次日），hour=18-23 表示 18:00-23:00
+  if (hour >= 18 && hour < 24) {
+    return { primary: '夜班', secondary: '中班', middleRatio: 0.5 };
+  }
+  
+  return { primary: '白班' };
+}
+
+// 获取该时段各班次的人员配置
+function getStaffForTimeSlot(
+  timeSlot: string,
+  whiteConfig: number,
+  middleConfig: number,
+  nightConfig: number
+): { white: number; middle: number; night: number } {
+  const { primary, secondary, middleRatio = 0 } = getShiftType(timeSlot);
+  
+  if (primary === '白班' && secondary === '中班') {
+    // 12:00-18:00：白班全员 + 中班部分
+    return {
+      white: whiteConfig,
+      middle: Math.round(middleConfig * middleRatio),
+      night: 0
+    };
+  }
+  
+  if (primary === '夜班' && secondary === '中班') {
+    // 18:00-00:00：夜班全员 + 中班部分
+    return {
+      white: 0,
+      middle: Math.round(middleConfig * middleRatio),
+      night: nightConfig
+    };
+  }
+  
+  if (primary === '白班') {
+    return { white: whiteConfig, middle: 0, night: 0 };
+  }
+  
+  if (primary === '夜班') {
+    return { white: 0, middle: 0, night: nightConfig };
+  }
+  
+  return { white: whiteConfig, middle: 0, night: 0 };
+}
 
 // ============ 示例数据（默认展示） ============
 const EXAMPLE_DATA: UploadedData[] = [
@@ -550,32 +625,97 @@ export default function SmartPerformanceDashboard() {
     if (uploadedData.length > 0) {
       const calculated = uploadedData.map(row => {
         currentTimeSlot = row.timeSlot;
-        const isWhite = row.shift === '白班';
-        const isMiddle = row.shift === '中班';
         
         // 获取该日期的班次配置，如果没有则使用默认值
         const dateConfig = staffConfig[row.date] || { white: 70, middle: 0, night: 95 };
-        const totalStaff = isWhite ? dateConfig.white : isMiddle ? dateConfig.middle : dateConfig.night;
-        const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite, isMiddle);
         
+        // 根据时段获取各班次人员配置
+        const { white: whiteStaff, middle: middleStaff, night: nightStaff } = getStaffForTimeSlot(
+          row.timeSlot,
+          dateConfig.white,
+          dateConfig.middle,
+          dateConfig.night
+        );
+        
+        // 获取时段类型（用于区分重叠时段）
+        const shiftInfo = getShiftType(row.timeSlot);
+        const isOverlapping = shiftInfo.secondary === '中班';
+        
+        // 计算总人员数（包含中班分配的人员）
+        const totalStaff = whiteStaff + middleStaff + nightStaff;
+        
+        // 使用智能分配函数分配卸车、集包、环线人员
+        // 传入的 isWhite 和 isMiddle 用于判断固定人员配置
+        const isWhitePeriod = shiftInfo.primary === '白班';
+        const isMiddlePeriod = shiftInfo.secondary === '中班';
+        const allocation = smartAllocate(
+          totalStaff,
+          row.unloadCount,
+          row.packageCount,
+          row.loopCount,
+          isWhitePeriod,
+          isMiddlePeriod
+        );
+        
+        // 计算薪资
         const manageSalary = calcManageSalary(row.manageCount);
+        
+        // 卸车薪资：所有人员共同承担
         const unloadSalary = calcUnloadSalary(allocation.unload);
         const unloadProfit = 0 - unloadSalary;
+        
+        // 集包薪资：根据中班比例分配
         const packageRevenue = calcPackageRevenue(row.packageCount);
-        const packageSalary = calcPackageSalary(allocation.package);
+        let packageSalary = calcPackageSalary(allocation.package);
+        // 如果是重叠时段，中班承担部分薪资
+        if (isOverlapping) {
+          // 中班承担 50% 的薪资
+          packageSalary = packageSalary * (1 - (shiftInfo.middleRatio || 0));
+        }
         const packageProfit = packageRevenue - packageSalary;
+        
+        // 环线薪资：根据中班比例分配
         const loopRevenue = calcLoopRevenue(row.loopCount);
-        const loopSalary = calcLoopSalary(allocation.loop);
+        let loopSalary = calcLoopSalary(allocation.loop);
+        // 如果是重叠时段，中班承担部分薪资
+        if (isOverlapping) {
+          // 中班承担 50% 的薪资
+          loopSalary = loopSalary * (1 - (shiftInfo.middleRatio || 0));
+        }
         const loopProfit = loopRevenue - loopSalary;
+        
+        // 其他成本
         const otherCost = calcOtherCost(allocation.file, allocation.inspect, allocation.service, allocation.receive);
+        
+        // 总盈亏
         const totalProfit = unloadProfit + packageProfit + loopProfit - manageSalary - otherCost;
         
         return {
           ...row,
-          unloadStaff: allocation.unload, packageStaff: allocation.package, loopStaff: allocation.loop,
-          fileStaff: allocation.file, inspectStaff: allocation.inspect, serviceStaff: allocation.service, receiveStaff: allocation.receive,
-          manageSalary, unloadSalary, unloadProfit, packageRevenue, packageSalary, packageProfit,
-          loopRevenue, loopSalary, loopProfit, otherCost, totalProfit
+          // 更新班次为根据时段自动判断的班次
+          shift: shiftInfo.primary,
+          unloadStaff: allocation.unload,
+          packageStaff: allocation.package,
+          loopStaff: allocation.loop,
+          fileStaff: allocation.file,
+          inspectStaff: allocation.inspect,
+          serviceStaff: allocation.service,
+          receiveStaff: allocation.receive,
+          // 额外记录中班分配的人员和薪资
+          whiteStaff,
+          middleStaff,
+          nightStaff,
+          manageSalary,
+          unloadSalary,
+          unloadProfit,
+          packageRevenue,
+          packageSalary,
+          packageProfit,
+          loopRevenue,
+          loopSalary,
+          loopProfit,
+          otherCost,
+          totalProfit
         };
       });
       setCalculatedData(calculated);
