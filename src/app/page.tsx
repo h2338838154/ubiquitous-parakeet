@@ -300,19 +300,19 @@ export default function SmartPerformanceDashboard() {
             };
             
             const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
-              date: parseDateValue(row['日期']),
-              timeSlot: row['时段'],
-              shift: row['班次'] || '白班',
-              freq: row['频次'] || '',
-              unloadCount: row['卸车量'] || 0,
-              loopCount: row['环线量'] || 0,
-              packageCount: row['集包量'] || 0,
-              manageCount: row['管理'] || 4,
+              date: parseDateValue(row['date']),
+              timeSlot: row['time_slot'],
+              shift: row['shift_type'] || '白班',
+              freq: row['frequency'] || '',
+              unloadCount: row['unload_count'] || 0,
+              loopCount: row['loop_count'] || 0,
+              packageCount: row['package_count'] || 0,
+              manageCount: row['person_count'] || 4,
               unloadStaff: row['卸车人数'] || 0,
               packageStaff: row['集包人数'] || 0,
               loopStaff: row['环线人数'] || 0,
-              fileStaff: row['文件人数'] || 0,
-              inspectStaff: row['发验人数'] || 0,
+              fileStaff: row['sender_count'] || 0,
+              inspectStaff: row['文件人数'] || 0,
               serviceStaff: row['客服人数'] || 0,
               receiveStaff: 0
             }));
@@ -369,7 +369,7 @@ export default function SmartPerformanceDashboard() {
       if (data && data.length > 0) {
         // 适配中文列名，日期可能是数字(Excel序列号)或字符串
         const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => {
-          const rawDate = row['日期'];
+          const rawDate = row['date'];
           let dateStr: string;
           if (typeof rawDate === 'number') {
             dateStr = excelSerialToDate(rawDate);
@@ -386,18 +386,18 @@ export default function SmartPerformanceDashboard() {
           }
           return {
             date: dateStr,
-            timeSlot: row['时段'],
-            shift: row['班次'] || '白班',
-            freq: row['频次'] || '',
-            unloadCount: row['卸车量'] || 0,
-            loopCount: row['环线量'] || 0,
-            packageCount: row['集包量'] || 0,
-            manageCount: row['管理'] || 4,
+            timeSlot: row['time_slot'],
+            shift: row['shift_type'] || '白班',
+            freq: row['frequency'] || '',
+            unloadCount: row['unload_count'] || 0,
+            loopCount: row['loop_count'] || 0,
+            packageCount: row['package_count'] || 0,
+            manageCount: row['person_count'] || 4,
             unloadStaff: row['卸车人数'] || 0,
             packageStaff: row['集包人数'] || 0,
             loopStaff: row['环线人数'] || 0,
-            fileStaff: row['文件人数'] || 0,
-            inspectStaff: row['发验人数'] || 0,
+            fileStaff: row['sender_count'] || 0,
+            inspectStaff: row['文件人数'] || 0,
             serviceStaff: row['客服人数'] || 0,
             receiveStaff: 0
           };
@@ -461,14 +461,14 @@ export default function SmartPerformanceDashboard() {
       // 日期需要转换为Excel序列号格式
       const logisticsRecords = calculatedData.map(d => ({
         sync_id: `${d.date}_${d.timeSlot}`,
-        '日期': dateToExcelSerial(d.date),
-        '时段': d.timeSlot,
-        '班次': d.shift,
-        '频次': d.freq,
-        '卸车量': d.unloadCount,
-        '环线量': d.loopCount,
-        '集包量': d.packageCount,
-        '管理': d.manageCount,
+        'date': dateToExcelSerial(d.date),
+        'time_slot': d.timeSlot,
+        'shift_type': d.shift,
+        'frequency': d.freq,
+        'unload_count': d.unloadCount,
+        'loop_count': d.loopCount,
+        'package_count': d.packageCount,
+        'person_count': d.manageCount,
         '管理薪资': Math.round(d.manageSalary * 100) / 100,
         '卸车人数': d.unloadStaff,
         '卸车薪资': Math.round(d.unloadSalary * 100) / 100,
@@ -483,10 +483,10 @@ export default function SmartPerformanceDashboard() {
         '环线收入': Math.round(d.loopRevenue * 100) / 100,
         '环线薪资': Math.round(d.loopSalary * 100) / 100,
         '环线盈亏': Math.round(d.loopProfit * 100) / 100,
-        '文件人数': d.fileStaff,
-        '发验人数': d.inspectStaff,
+        'sender_count': d.fileStaff,
+        '文件人数': d.inspectStaff,
         '客服人数': d.serviceStaff,
-        '其他成本': Math.round(d.otherCost * 100) / 100,
+        'other_cost': Math.round(d.otherCost * 100) / 100,
         '总盈亏': Math.round(d.totalProfit * 100) / 100,
         '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
@@ -690,12 +690,12 @@ export default function SmartPerformanceDashboard() {
           return undefined;
         };
         
-        const dateCol = findCol(['日期', 'date']);
-        const timeCol = findCol(['时段', 'time']);
-        const shiftCol = findCol(['班次', 'shift']);
-        const unloadCountCol = findCol(['卸车量']);
-        const loopCountCol = findCol(['环线量']);
-        const packageCountCol = findCol(['集包量']);
+        const dateCol = findCol(['date', 'date']);
+        const timeCol = findCol(['time_slot', 'time']);
+        const shiftCol = findCol(['shift_type', 'shift']);
+        const unloadCountCol = findCol(['unload_count']);
+        const loopCountCol = findCol(['loop_count']);
+        const packageCountCol = findCol(['package_count']);
         
         if (!dateCol || !timeCol) { setNotification({ type: 'error', message: '必须包含"日期"和"时段"列' }); return; }
         
@@ -770,9 +770,9 @@ export default function SmartPerformanceDashboard() {
   // 下载模板
   const downloadTemplate = () => {
     const template = [
-      { '日期': '4月1日', '时段': '0000-0100', '卸车量': 16991, '集包量': 6568, '环线量': 1608 },
-      { '日期': '4月1日', '时段': '0700-0800', '卸车量': 1064, '集包量': 246, '环线量': 1528 },
-      { '日期': '4月1日', '时段': '0800-0900', '卸车量': 5592, '集包量': 4179, '环线量': 3243 },
+      { 'date': '4月1日', 'time_slot': '0000-0100', 'unload_count': 16991, 'package_count': 6568, 'loop_count': 1608 },
+      { 'date': '4月1日', 'time_slot': '0700-0800', 'unload_count': 1064, 'package_count': 246, 'loop_count': 1528 },
+      { 'date': '4月1日', 'time_slot': '0800-0900', 'unload_count': 5592, 'package_count': 4179, 'loop_count': 3243 },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -783,11 +783,11 @@ export default function SmartPerformanceDashboard() {
   // 导出
   const exportData = () => {
     const rows = filteredData.map(d => ({
-      '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
-      '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
-      '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
-      '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
-      '管理薪资': d.manageSalary.toFixed(2), '其他成本': d.otherCost.toFixed(2),
+      'date': d.date, 'time_slot': d.timeSlot, 'shift_type': d.shift,
+      'unload_count': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
+      'package_count': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
+      'loop_count': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
+      '管理薪资': d.manageSalary.toFixed(2), 'other_cost': d.otherCost.toFixed(2),
       '总收入': (d.packageRevenue + d.loopRevenue).toFixed(2), '总薪资': (d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary).toFixed(2), '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
