@@ -457,38 +457,38 @@ export default function SmartPerformanceDashboard() {
     
     setIsSaving(true);
     try {
-      // 保存业务数据（使用中文列名适配现有表结构）
+      // 保存业务数据（使用英文列名）
       // 日期需要转换为Excel序列号格式
       const logisticsRecords = calculatedData.map(d => ({
         sync_id: `${d.date}_${d.timeSlot}`,
-        'date': dateToExcelSerial(d.date),
-        'time_slot': d.timeSlot,
-        'shift_type': d.shift,
-        'frequency': d.freq,
-        'unload_count': d.unloadCount,
-        'loop_count': d.loopCount,
-        'package_count': d.packageCount,
-        'person_count': d.manageCount,
-        '管理薪资': Math.round(d.manageSalary * 100) / 100,
-        '卸车人数': d.unloadStaff,
-        '卸车薪资': Math.round(d.unloadSalary * 100) / 100,
-        '卸车盈亏': Math.round(d.unloadProfit * 100) / 100,
-        '集包人数': d.packageStaff,
-        '集包单价': PACKAGE_UNIT_PRICE,
-        '集包收入': Math.round(d.packageRevenue * 100) / 100,
-        '集包薪资': Math.round(d.packageSalary * 100) / 100,
-        '集包盈亏': Math.round(d.packageProfit * 100) / 100,
-        '环线人数': d.loopStaff,
-        '环线单价': LOOP_UNIT_PRICE,
-        '环线收入': Math.round(d.loopRevenue * 100) / 100,
-        '环线薪资': Math.round(d.loopSalary * 100) / 100,
-        '环线盈亏': Math.round(d.loopProfit * 100) / 100,
-        'sender_count': d.fileStaff,
-        '文件人数': d.inspectStaff,
-        '客服人数': d.serviceStaff,
-        'other_cost': Math.round(d.otherCost * 100) / 100,
-        '总盈亏': Math.round(d.totalProfit * 100) / 100,
-        '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
+        date: dateToExcelSerial(d.date),
+        time_slot: d.timeSlot,
+        shift_type: d.shift,
+        frequency: d.freq,
+        unload_count: d.unloadCount,
+        loop_count: d.loopCount,
+        package_count: d.packageCount,
+        person_count: d.manageCount,
+        manage_salary: Math.round(d.manageSalary * 100) / 100,
+        unload_staff: d.unloadStaff,
+        unload_salary: Math.round(d.unloadSalary * 100) / 100,
+        unload_profit: Math.round(d.unloadProfit * 100) / 100,
+        package_staff: d.packageStaff,
+        package_unit_price: PACKAGE_UNIT_PRICE,
+        package_revenue: Math.round(d.packageRevenue * 100) / 100,
+        package_salary: Math.round(d.packageSalary * 100) / 100,
+        package_profit: Math.round(d.packageProfit * 100) / 100,
+        loop_staff: d.loopStaff,
+        loop_unit_price: LOOP_UNIT_PRICE,
+        loop_revenue: Math.round(d.loopRevenue * 100) / 100,
+        loop_salary: Math.round(d.loopSalary * 100) / 100,
+        loop_profit: Math.round(d.loopProfit * 100) / 100,
+        sender_count: d.fileStaff,
+        inspect_staff: d.inspectStaff,
+        service_staff: d.serviceStaff,
+        other_cost: Math.round(d.otherCost * 100) / 100,
+        total_profit: Math.round(d.totalProfit * 100) / 100,
+        total_staff: d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
       
       // 先清除云端旧数据，再保存新数据（确保数据一致）
