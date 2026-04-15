@@ -853,10 +853,16 @@ export default function SmartPerformanceDashboard() {
         // 总利润 = 总收入 - 总成本（确保是有效数字）
         const totalProfit = Number(totalRevenue) - Number(totalCost);
         
+        // 班次：优先使用原始上传的班次，如果没有则根据时段自动判断
+        const originalShift = row.shift;
+        const finalShift = (originalShift && ['白班', '中班', '夜班'].includes(originalShift)) 
+          ? originalShift 
+          : shiftInfo.primary;
+        
         return {
           ...row,
-          // 更新班次为根据时段自动判断的班次
-          shift: shiftInfo.primary,
+          // 班次：优先使用上传的班次，否则使用自动计算的班次
+          shift: finalShift,
           unloadStaff: allocation.unload,
           packageStaff: allocation.package,
           loopStaff: allocation.loop,
@@ -1115,9 +1121,9 @@ export default function SmartPerformanceDashboard() {
   // 下载模板
   const downloadTemplate = () => {
     const template = [
-      { '日期': '4月1日', '时段': '0000-0100', '卸车量': 16991, '集包量': 6568, '环线量': 1608 },
-      { '日期': '4月1日', '时段': '0700-0800', '卸车量': 1064, '集包量': 246, '环线量': 1528 },
-      { '日期': '4月1日', '时段': '0800-0900', '卸车量': 5592, '集包量': 4179, '环线量': 3243 },
+      { '日期': '4月1日', '时段': '0000-0100', '班次': '夜班', '卸车量': 16991, '集包量': 6568, '环线量': 1608 },
+      { '日期': '4月1日', '时段': '0700-0800', '班次': '白班', '卸车量': 1064, '集包量': 246, '环线量': 1528 },
+      { '日期': '4月1日', '时段': '0800-0900', '班次': '白班', '卸车量': 5592, '集包量': 4179, '环线量': 3243 },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
