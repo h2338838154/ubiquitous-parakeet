@@ -300,21 +300,21 @@ export default function SmartPerformanceDashboard() {
             };
             
             const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => ({
-              date: parseDateValue(row['date']),
-              timeSlot: row['time_slot'],
-              shift: row['shift_type'] || '白班',
-              freq: row['frequency'] || '',
-              unloadCount: row['unload_count'] || 0,
-              loopCount: row['loop_count'] || 0,
-              packageCount: row['package_count'] || 0,
-              manageCount: row['person_count'] || 4,
+              date: parseDateValue(row['日期']),
+              timeSlot: row['时段'],
+              shift: row['班次'] || '白班',
+              freq: row['频次'] || '',
+              unloadCount: row['卸车量'] || 0,
+              loopCount: row['环线量'] || 0,
+              packageCount: row['集包量'] || 0,
+              manageCount: row['管理'] || 4,
               unloadStaff: row['卸车人数'] || 0,
               packageStaff: row['集包人数'] || 0,
               loopStaff: row['环线人数'] || 0,
-              fileStaff: row['sender_count'] || 0,
-              inspectStaff: row['文件人数'] || 0,
+              fileStaff: row['文件人数'] || 0,
+              inspectStaff: row['发验人数'] || 0,
               serviceStaff: row['客服人数'] || 0,
-              receiveStaff: 0
+              receiveStaff: row['接发员'] || 0
             }));
             setUploadedData(parsed);
             setHasCloudData(true);
@@ -369,7 +369,7 @@ export default function SmartPerformanceDashboard() {
       if (data && data.length > 0) {
         // 适配中文列名，日期可能是数字(Excel序列号)或字符串
         const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => {
-          const rawDate = row['date'];
+          const rawDate = row['日期'];
           let dateStr: string;
           if (typeof rawDate === 'number') {
             dateStr = excelSerialToDate(rawDate);
@@ -386,20 +386,20 @@ export default function SmartPerformanceDashboard() {
           }
           return {
             date: dateStr,
-            timeSlot: row['time_slot'],
-            shift: row['shift_type'] || '白班',
-            freq: row['frequency'] || '',
-            unloadCount: row['unload_count'] || 0,
-            loopCount: row['loop_count'] || 0,
-            packageCount: row['package_count'] || 0,
-            manageCount: row['person_count'] || 4,
+            timeSlot: row['时段'],
+            shift: row['班次'] || '白班',
+            freq: row['频次'] || '',
+            unloadCount: row['卸车量'] || 0,
+            loopCount: row['环线量'] || 0,
+            packageCount: row['集包量'] || 0,
+            manageCount: row['管理'] || 4,
             unloadStaff: row['卸车人数'] || 0,
             packageStaff: row['集包人数'] || 0,
             loopStaff: row['环线人数'] || 0,
-            fileStaff: row['sender_count'] || 0,
-            inspectStaff: row['文件人数'] || 0,
+            fileStaff: row['文件人数'] || 0,
+            inspectStaff: row['发验人数'] || 0,
             serviceStaff: row['客服人数'] || 0,
-            receiveStaff: 0
+            receiveStaff: row['接发员'] || 0
           };
         });
         setUploadedData(parsed);
@@ -457,38 +457,35 @@ export default function SmartPerformanceDashboard() {
     
     setIsSaving(true);
     try {
-      // 保存业务数据（使用英文列名）
-      // 日期需要转换为Excel序列号格式
+      // 保存业务数据（使用中文列名）
       const logisticsRecords = calculatedData.map(d => ({
-        sync_id: `${d.date}_${d.timeSlot}`,
-        date: dateToExcelSerial(d.date),
-        time_slot: d.timeSlot,
-        shift_type: d.shift,
-        frequency: d.freq,
-        unload_count: d.unloadCount,
-        loop_count: d.loopCount,
-        package_count: d.packageCount,
-        person_count: d.manageCount,
-        manage_salary: Math.round(d.manageSalary * 100) / 100,
-        unload_staff: d.unloadStaff,
-        unload_salary: Math.round(d.unloadSalary * 100) / 100,
-        unload_profit: Math.round(d.unloadProfit * 100) / 100,
-        package_staff: d.packageStaff,
-        package_unit_price: PACKAGE_UNIT_PRICE,
-        package_revenue: Math.round(d.packageRevenue * 100) / 100,
-        package_salary: Math.round(d.packageSalary * 100) / 100,
-        package_profit: Math.round(d.packageProfit * 100) / 100,
-        loop_staff: d.loopStaff,
-        loop_unit_price: LOOP_UNIT_PRICE,
-        loop_revenue: Math.round(d.loopRevenue * 100) / 100,
-        loop_salary: Math.round(d.loopSalary * 100) / 100,
-        loop_profit: Math.round(d.loopProfit * 100) / 100,
-        sender_count: d.fileStaff,
-        inspect_staff: d.inspectStaff,
-        service_staff: d.serviceStaff,
-        other_cost: Math.round(d.otherCost * 100) / 100,
-        total_profit: Math.round(d.totalProfit * 100) / 100,
-        total_staff: d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
+        '日期': d.date,
+        '时段': d.timeSlot,
+        '班次': d.shift,
+        '频次': d.freq,
+        '卸车量': d.unloadCount,
+        '卸车人数': d.unloadStaff,
+        '卸车薪资': Math.round(d.unloadSalary * 100) / 100,
+        '卸车盈亏': Math.round(d.unloadProfit * 100) / 100,
+        '集包量': d.packageCount,
+        '集包人数': d.packageStaff,
+        '集包薪资': Math.round(d.packageSalary * 100) / 100,
+        '集包收入': Math.round(d.packageRevenue * 100) / 100,
+        '集包盈亏': Math.round(d.packageProfit * 100) / 100,
+        '环线量': d.loopCount,
+        '环线人数': d.loopStaff,
+        '环线薪资': Math.round(d.loopSalary * 100) / 100,
+        '环线收入': Math.round(d.loopRevenue * 100) / 100,
+        '环线盈亏': Math.round(d.loopProfit * 100) / 100,
+        '管理': d.manageCount,
+        '管理薪资': Math.round(d.manageSalary * 100) / 100,
+        '文件人数': d.fileStaff,
+        '发验人数': d.inspectStaff,
+        '客服人数': d.serviceStaff,
+        '接发员': d.receiveStaff,
+        '其他成本': Math.round(d.otherCost * 100) / 100,
+        '总盈亏': Math.round(d.totalProfit * 100) / 100,
+        '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
       
       // 先清除云端旧数据，再保存新数据（确保数据一致）

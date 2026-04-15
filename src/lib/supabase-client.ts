@@ -2,15 +2,19 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://pczkhicrnvhsfmenubmn.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjemtoaWNybnZoc2ZtZW51Ym1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTAyOTAsImV4cCI6MjA5MTM4NjI5MH0.jh6OyWCSv-RneKqcBxzf8z5hYLQU5hRjHbB0KVEckXM';
 
-let supabase: SupabaseClient | null = null;
+let supabaseInstance: SupabaseClient | null = null;
 
-if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
+export function getSupabaseClient(): SupabaseClient {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  return supabaseInstance;
 }
 
+const supabase = typeof window !== 'undefined' ? getSupabaseClient() : null;
 export { supabase };
 
 // 日期转换函数：ISO日期转Excel序列号
@@ -20,7 +24,7 @@ export function dateToExcelSerial(dateStr: string): number {
   return Math.floor((date.getTime() - excelEpoch.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// 日期转换函数：Excel序列号转ISO日期（考虑时区偏移）
+// 日期转换函数：Excel序列号转ISO日期
 export function excelSerialToDate(serial: number): string {
   const excelEpoch = new Date(Date.UTC(1899, 11, 30));
   const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
@@ -30,40 +34,12 @@ export function excelSerialToDate(serial: number): string {
   return `${year}-${month}-${day}`;
 }
 
-// 适配用户现有表结构（包含英文和中文列名）
+// 物流数据接口（使用中文列名）
 export interface LogisticsDataRow {
   id?: number;
-  sync_id: string;
-  // 英文列名
-  date: string | number;
-  time_slot: string;
-  shift_type: string;
-  frequency: string;
-  unload_count: number;
-  unload_price: number;
-  unload_profit: number;
-  unload_loss: number;
-  package_count: number;
-  package_price: number;
-  package_profit: number;
-  package_loss: number;
-  loop_count: number;
-  loop_price: number;
-  loop_profit: number;
-  loop_loss: number;
-  other_cost: number;
-  sender_count: number;
-  person_count: number;
-  receiver_count: number;
-  total_profit: number;
-  created_at?: string;
-  updated_at?: string;
-  shift_white?: number;
-  shift_middle?: number;
-  shift_night?: number;
-  // 中文列名
-  '日期'?: string | number;
-  '时段'?: string;
+  sync_id?: string;
+  '日期': string;
+  '时段': string;
   '班次'?: string;
   '频次'?: string;
   '卸车量'?: number;
@@ -73,38 +49,83 @@ export interface LogisticsDataRow {
   '集包量'?: number;
   '集包人数'?: number;
   '集包薪资'?: number;
+  '集包收入'?: number;
   '集包盈亏'?: number;
   '环线量'?: number;
   '环线人数'?: number;
   '环线薪资'?: number;
+  '环线收入'?: number;
   '环线盈亏'?: number;
   '管理薪资'?: number;
   '管理'?: number;
-  '其他成本'?: number;
-  '总盈亏'?: number;
   '文件人数'?: number;
   '发验人数'?: number;
   '客服人数'?: number;
   '接发员'?: number;
+  '其他成本'?: number;
+  '总盈亏'?: number;
   '总表人数'?: number;
-  '人数验证'?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// 保存数据
-export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
+// 班次配置接口
+export interface ShiftConfigRow {
+  id?: number;
+  日期: string;
+  班次类型: string;
+  总人数?: number;
+  卸车人数?: number;
+  集包人数?: number;
+  环线人数?: number;
+  管理人数?: number;
+  备注?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// DailyStaffConfig 类型
+type DailyStaffConfig = Record<string, { white: number; middle: number; night: number }>;
+
+// ==================== 云端数据操作 ====================
+
+// 保存物流数据到云端
+export async function saveLogisticsData(data: LogisticsDataRow[]): Promise<{ success: boolean; error?: string }> {
   try {
+    const client = getSupabaseClient();
+    
     for (const record of data) {
-      const { error } = await supabase
-        .from('business_data')
-        .upsert(record, { onConflict: 'sync_id' });
+      const { 日期, 时段 } = record;
       
-      if (error) {
-        console.error('Save error:', error);
-        return { success: false, error: error.message };
+      // 检查是否已存在
+      const { data: existing } = await client
+        .from('business_data')
+        .select('id')
+        .eq('日期', 日期)
+        .eq('时段', 时段)
+        .maybeSingle();
+
+      if (existing) {
+        // 更新
+        const { error } = await client
+          .from('business_data')
+          .update(record)
+          .eq('id', existing.id);
+        
+        if (error) {
+          console.error('Update error:', error);
+          return { success: false, error: error.message };
+        }
+      } else {
+        // 新增
+        const { error } = await client
+          .from('business_data')
+          .insert(record);
+        
+        if (error) {
+          console.error('Insert error:', error);
+          return { success: false, error: error.message };
+        }
       }
     }
     return { success: true };
@@ -114,17 +135,14 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   }
 }
 
-// 加载数据
+// 加载物流数据
 export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; error?: string }> {
-  if (!supabase) {
-    return { data: [], error: '云端连接不可用' };
-  }
-  
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    const { data, error } = await client
       .from('business_data')
       .select('*')
-      .order('date', { ascending: false });
+      .order('日期', { ascending: false });
     
     if (error) {
       console.error('Load error:', error);
@@ -138,14 +156,11 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   }
 }
 
-// 清除数据
+// 清除物流数据
 export async function clearLogisticsData(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
+    const client = getSupabaseClient();
+    const { error } = await client.from('business_data').delete().neq('id', 0);
     if (error) {
       console.warn('Clear warning:', error);
     }
@@ -157,19 +172,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
 
 // ==================== 班次配置相关 ====================
 
-// 班次配置类型
-interface ShiftConfig {
-  date: string;
-  config_data: Record<string, number>;
-  white: number;
-  middle: number;
-  night: number;
-}
-
-// DailyStaffConfig 类型
-type DailyStaffConfig = Record<string, { white: number; middle: number; night: number }>;
-
-// 保存班次配置到本地存储（按日期存储多个配置）
+// 保存班次配置到本地存储
 export function saveShiftConfigLocal(configs: DailyStaffConfig): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('shift_configs_local', JSON.stringify(configs));
@@ -192,33 +195,40 @@ export function loadShiftConfigLocal(): DailyStaffConfig | null {
   return null;
 }
 
-// 批量保存所有班次配置到云端（使用 business_data 表存储）
+// 批量保存班次配置到云端
 export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
-    // 使用 business_data 表存储班次配置
-    // date = 日期, time_slot = '班次配置', shift_type = '配置'
-    // unload_count = 白班人数, loop_count = 中班人数, package_count = 夜班人数
-    const records = Object.entries(configs).map(([dateStr, config]) => ({
-      sync_id: `shift_config_${dateStr}`,
-      date: dateStr,
-      time_slot: '班次配置',
-      shift_type: '配置',
-      unload_count: config.white,
-      loop_count: config.middle,
-      package_count: config.night
-    }));
-
-    for (const record of records) {
-      const { error } = await supabase
-        .from('business_data')
-        .upsert(record, { onConflict: 'sync_id' });
+    const client = getSupabaseClient();
+    
+    for (const [dateStr, config] of Object.entries(configs)) {
+      const excelDate = dateToExcelSerial(dateStr);
       
-      if (error) {
-        console.warn('Save shift config warning:', error);
+      // 检查是否已存在
+      const { data: existing } = await client
+        .from('business_data')
+        .select('id')
+        .eq('日期', excelDate)
+        .eq('时段', '班次配置')
+        .maybeSingle();
+
+      const record = {
+        '日期': excelDate,
+        '时段': '班次配置',
+        '班次': '配置',
+        '卸车量': config.white,
+        '环线量': config.middle,
+        '集包量': config.night
+      };
+
+      if (existing) {
+        await client
+          .from('business_data')
+          .update(record)
+          .eq('id', existing.id);
+      } else {
+        await client
+          .from('business_data')
+          .insert(record);
       }
     }
     return { success: true };
@@ -230,18 +240,16 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
 
 // 从云端加载班次配置
 export async function loadShiftConfigCloud(dateStr?: string): Promise<{ data: DailyStaffConfig | null; error?: string }> {
-  if (!supabase) {
-    return { data: null, error: '云端连接不可用' };
-  }
-  
   try {
-    let query = supabase
+    const client = getSupabaseClient();
+    
+    let query = client
       .from('business_data')
-      .select('date, unload_count, loop_count, package_count')
-      .eq('time_slot', '班次配置');
+      .select('日期, 卸车量, 环线量, 集包量')
+      .eq('时段', '班次配置');
 
     if (dateStr) {
-      query = query.eq('date', dateStr);
+      query = query.eq('日期', dateToExcelSerial(dateStr));
     }
 
     const { data, error } = await query;
@@ -253,12 +261,17 @@ export async function loadShiftConfigCloud(dateStr?: string): Promise<{ data: Da
 
     if (data && data.length > 0) {
       const configs: DailyStaffConfig = {};
-      const typedData = data as unknown as Array<{ date: string; unload_count?: number; loop_count?: number; package_count?: number }>;
-      typedData.forEach((row) => {
-        configs[row.date] = {
-          white: row.unload_count ?? 70,
-          middle: row.loop_count ?? 0,
-          night: row.package_count ?? 95
+      (data as unknown as Array<{'日期': number | string; '卸车量'?: number; '环线量'?: number; '集包量'?: number}>).forEach((row) => {
+        let dateStr: string;
+        if (typeof row['日期'] === 'number') {
+          dateStr = excelSerialToDate(row['日期']);
+        } else {
+          dateStr = String(row['日期']).trim();
+        }
+        configs[dateStr] = {
+          white: row['卸车量'] ?? 70,
+          middle: row['环线量'] ?? 0,
+          night: row['集包量'] ?? 95
         };
       });
       console.log('[loadShiftConfigCloud] 配置:', configs);
@@ -275,15 +288,12 @@ export async function loadShiftConfigCloud(dateStr?: string): Promise<{ data: Da
 
 // 清除班次配置
 export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    const { error } = await client
       .from('business_data')
       .delete()
-      .eq('time_slot', '班次配置');
+      .eq('时段', '班次配置');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear shift configs warning:', error);
     }
@@ -295,12 +305,9 @@ export async function clearShiftConfigs(): Promise<{ success: boolean; error?: s
 
 // 清除所有云端数据
 export async function clearAllCloudData(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
+    const client = getSupabaseClient();
+    const { error } = await client.from('business_data').delete().neq('id', 0);
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear all data warning:', error);
     }
