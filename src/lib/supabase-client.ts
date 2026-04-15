@@ -78,7 +78,7 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   try {
     for (const record of data) {
       const { error } = await supabase
-        .from('logistics_data')
+        .from('business_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -101,7 +101,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   
   try {
     const { data, error } = await supabase
-      .from('logistics_data')
+      .from('business_data')
       .select('*')
       .order('日期', { ascending: true })
       .order('时段', { ascending: true });
@@ -156,7 +156,7 @@ export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ succe
   
   try {
     const { error } = await supabase
-      .from('shift_configs')
+      .from('shift_config')
       .upsert({
         date: config.date,
         config_data: config.configs,
@@ -177,15 +177,9 @@ export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ succe
   }
 }
 
-// 批量保存所有班次配置到云端（同时保存到本地存储）
+// 批量保存所有班次配置到云端
 export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
-  console.log('[saveAllShiftConfigsCloud] 保存配置:', configs);
-  
-  // 先保存到本地存储
-  saveShiftConfigLocal(configs);
-  
   if (!supabase) {
-    console.log('[saveAllShiftConfigsCloud] 云端不可用，仅保存到本地存储');
     return { success: false, error: '云端连接不可用' };
   }
   
@@ -201,21 +195,18 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
     
     for (const record of records) {
       const { error } = await supabase
-        .from('shift_configs')
+        .from('shift_config')
         .upsert(record, { onConflict: 'date' });
       
       if (error && Object.keys(error).length > 0) {
-        console.warn('[saveAllShiftConfigsCloud] 云端保存失败:', record.date, error);
-      } else {
-        console.log('[saveAllShiftConfigsCloud] 成功保存到云端:', record.date);
+        console.warn('[saveAllShiftConfigsCloud] 保存失败:', record.date, error);
+        return { success: false, error: error.message };
       }
     }
-    // 即使云端部分失败，也返回成功（因为本地存储已保存）
     return { success: true };
   } catch (err) {
-    console.warn('[saveAllShiftConfigsCloud] 云端保存失败，使用本地存储:', err);
-    // 本地存储已保存，返回部分成功
-    return { success: true, error: '已保存到本地存储，云端保存失败' };
+    console.warn('[saveAllShiftConfigsCloud] 保存失败:', err);
+    return { success: false, error: '保存班次配置失败' };
   }
 }
 
@@ -230,57 +221,20 @@ export function loadShiftConfig(): { data: ShiftConfig | null } {
   return { data: null };
 }
 
-// 保存班次配置到本地存储（按日期存储多个配置）
-export function saveShiftConfigLocal(configs: DailyStaffConfig): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('shift_configs_local', JSON.stringify(configs));
-    console.log('[saveShiftConfigLocal] 已保存到本地存储:', configs);
-  }
-}
-
-// 从本地存储加载班次配置
-export function loadShiftConfigLocal(): DailyStaffConfig | null {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('shift_configs_local');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        console.log('[loadShiftConfigLocal] 从本地存储加载:', data);
-        return data;
-      } catch {
-        return null;
-      }
-    }
-  }
-  return null;
-}
-
-// 从云端加载班次配置（带本地存储备份）
+// 从云端加载班次配置
 export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
-  // 优先尝试从本地存储加载
-  const localData = loadShiftConfigLocal();
-  
   if (!supabase) {
-    console.log('[loadShiftConfigCloud] 云端不可用，使用本地存储');
-    return { data: localData, error: '云端连接不可用，使用本地存储' };
+    return { data: null, error: '云端连接不可用' };
   }
   
   try {
     const { data, error } = await supabase
-      .from('shift_configs')
+      .from('shift_config')
       .select('*')
       .order('date', { ascending: true });
     
-    console.log('[loadShiftConfigCloud] 查询结果:', { data, error });
-    
-    // 检查错误：如果 error 不存在或为空对象，视为成功
     if (error && Object.keys(error).length > 0) {
-      console.warn('[loadShiftConfigCloud] 云端加载失败:', error);
-      // 云端加载失败，使用本地存储作为备份
-      if (localData) {
-        console.log('[loadShiftConfigCloud] 使用本地存储备份');
-        return { data: localData, error: '使用本地存储备份' };
-      }
+      console.warn('[loadShiftConfigCloud] 加载失败:', error);
       return { data: null, error: error.message };
     }
     
@@ -293,26 +247,12 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
           night: row.night ?? 95
         };
       });
-      console.log('[loadShiftConfigCloud] 云端配置:', configs);
-      // 同步保存到本地存储作为备份
-      saveShiftConfigLocal(configs);
       return { data: configs };
     }
     
-    console.log('[loadShiftConfigCloud] 云端无数据');
-    // 无云端数据，尝试使用本地存储
-    if (localData) {
-      console.log('[loadShiftConfigCloud] 使用本地存储数据');
-      return { data: localData };
-    }
     return { data: null };
   } catch (err) {
     console.warn('[loadShiftConfigCloud] 加载失败:', err);
-    // 加载失败，使用本地存储作为备份
-    if (localData) {
-      console.log('[loadShiftConfigCloud] 使用本地存储备份');
-      return { data: localData, error: '使用本地存储备份' };
-    }
     return { data: null, error: '加载班次配置失败' };
   }
 }
@@ -324,7 +264,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
   
   try {
-    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
+    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear logistics data warning:', error);
     }
@@ -341,7 +281,7 @@ export async function clearShiftConfigs(): Promise<{ success: boolean; error?: s
   }
   
   try {
-    const { error } = await supabase.from('shift_configs').delete().neq('date', '');
+    const { error } = await supabase.from('shift_config').delete().neq('date', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear shift configs warning:', error);
     }
@@ -359,9 +299,9 @@ export async function clearAllCloudData(): Promise<{ success: boolean; error?: s
   
   try {
     // 清除业务数据
-    await supabase.from('logistics_data').delete().neq('sync_id', '');
+    await supabase.from('business_data').delete().neq('sync_id', '');
     // 清除班次配置
-    await supabase.from('shift_configs').delete().neq('date', '');
+    await supabase.from('shift_config').delete().neq('date', '');
     return { success: true };
   } catch (err) {
     return { success: false, error: '清除失败' };
