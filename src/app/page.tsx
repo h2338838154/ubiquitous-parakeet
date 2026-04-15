@@ -51,6 +51,7 @@ interface CalculatedData extends UploadedData {
   // 人员成本
   laborCost: number;        // 劳务成本
   ownWhiteCost: number;     // 白班自有人员成本
+  ownMiddleCost: number;    // 中班自有人员成本
   ownNightCost: number;     // 夜班自有人员成本
   dailyWhiteCost: number;   // 白班日结人员成本
   dailyNightCost: number;   // 夜班日结人员成本
@@ -960,12 +961,12 @@ export default function SmartPerformanceDashboard() {
   
   // 按天汇总
   const dailyStats = useMemo(() => {
-    const map = new Map<string, { date: string; profit: number; revenue: number; salary: number }>();
+    const map = new Map<string, { date: string; profit: number; revenue: number; cost: number }>();
     calculatedData.forEach(d => {
-      const existing = map.get(d.date) || { date: d.date, profit: 0, revenue: 0, salary: 0 };
-      existing.profit += d.totalProfit;
-      existing.revenue += d.packageRevenue + d.loopRevenue;
-      existing.salary += d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary;
+      const existing = map.get(d.date) || { date: d.date, profit: 0, revenue: 0, cost: 0 };
+      existing.profit += d.totalProfit || 0;
+      existing.revenue += (d.packageRevenue || 0) + (d.loopRevenue || 0);
+      existing.cost += d.totalCost || 0;
       map.set(d.date, existing);
     });
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -980,9 +981,9 @@ export default function SmartPerformanceDashboard() {
   
   const profitTrendData = useMemo(() => filteredData.map(d => ({
     name: d.timeSlot, date: d.date,
-    利润: Math.round(d.totalProfit),
-    收入: Math.round(d.packageRevenue + d.loopRevenue),
-    薪资: Math.round(d.unloadSalary + d.packageSalary + d.loopSalary)
+    利润: Math.round(d.totalProfit || 0),
+    收入: Math.round((d.packageRevenue || 0) + (d.loopRevenue || 0)),
+    成本: Math.round(d.totalCost || 0)
   })), [filteredData]);
   
   const hourlyProfitData = useMemo(() => {
@@ -1135,11 +1136,24 @@ export default function SmartPerformanceDashboard() {
   const exportData = () => {
     const rows = filteredData.map(d => ({
       '日期': d.date, '时段': d.timeSlot, '班次': d.shift,
-      '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
-      '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
-      '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
-      '管理薪资': d.manageSalary.toFixed(2), '总成本': d.totalCost.toFixed(2),
-      '总收入': (d.packageRevenue + d.loopRevenue).toFixed(2), '总薪资': (d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary).toFixed(2), '利润': d.totalProfit.toFixed(2)
+      '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': Number(d.unloadSalary || 0).toFixed(2), '卸车盈亏': Number(d.unloadProfit || 0).toFixed(2),
+      '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': Number(d.packageRevenue || 0).toFixed(2), '集包薪资': Number(d.packageSalary || 0).toFixed(2), '集包盈亏': Number(d.packageProfit || 0).toFixed(2),
+      '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': Number(d.loopRevenue || 0).toFixed(2), '环线薪资': Number(d.loopSalary || 0).toFixed(2), '环线盈亏': Number(d.loopProfit || 0).toFixed(2),
+      '管理薪资': Number(d.manageSalary || 0).toFixed(2),
+      '劳务成本': Number(d.laborCost || 0).toFixed(2),
+      '白班自有': Number(d.ownWhiteCost || 0).toFixed(2),
+      '中班自有': Number(d.ownMiddleCost || 0).toFixed(2),
+      '夜班自有': Number(d.ownNightCost || 0).toFixed(2),
+      '白班日结': Number(d.dailyWhiteCost || 0).toFixed(2),
+      '夜班日结': Number(d.dailyNightCost || 0).toFixed(2),
+      '社保': Number(d.socialSecurity || 0).toFixed(2),
+      '客服成本': Number(d.serviceCost || 0).toFixed(2),
+      '商业险': Number(d.commercialInsurance || 0).toFixed(2),
+      '工单理赔': Number(d.orderClaim || 0).toFixed(2),
+      '考核金额': Number(d.assessAmount || 0).toFixed(2),
+      '总成本': Number(d.totalCost || 0).toFixed(2),
+      '总收入': (Number(d.packageRevenue || 0) + Number(d.loopRevenue || 0)).toFixed(2),
+      '利润': Number(d.totalProfit || 0).toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -1847,9 +1861,9 @@ export default function SmartPerformanceDashboard() {
                           <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
                             <span className="text-slate-400 flex items-center gap-2">
                               <DollarSign className="w-4 h-4 text-red-400" />
-                              薪资
+                              成本
                             </span>
-                            <span className="font-semibold text-red-400">¥{Math.round(d.salary).toLocaleString()}</span>
+                            <span className="font-semibold text-red-400">¥{Math.round(d.cost).toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between items-center py-2 bg-slate-700/30 -mx-4 px-4 rounded-lg mt-2">
                             <span className="font-bold text-slate-200 flex items-center gap-2">
