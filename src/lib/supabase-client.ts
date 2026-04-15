@@ -123,6 +123,14 @@ export interface DailyStaffConfig {
     white: number;
     middle: number;
     night: number;
+    ownWhite: number;
+    ownMiddle: number;
+    ownNight: number;
+    laborWhite: number;
+    laborNight: number;
+    dailyWhite: number;
+    dailyNight: number;
+    assessAmount: number;
   };
 }
 
@@ -132,6 +140,14 @@ export interface ShiftConfig {
   white: number;
   middle: number;
   night: number;
+  ownWhite: number;
+  ownMiddle: number;
+  ownNight: number;
+  laborWhite: number;
+  laborNight: number;
+  dailyWhite: number;
+  dailyNight: number;
+  assessAmount: number;
 }
 
 interface ShiftConfigRow {
@@ -139,6 +155,14 @@ interface ShiftConfigRow {
   white: number;
   middle: number;
   night: number;
+  own_white: number;
+  own_middle: number;
+  own_night: number;
+  labor_white: number;
+  labor_night: number;
+  daily_white: number;
+  daily_night: number;
+  assess_amount: number;
 }
 
 // 保存班次配置到 localStorage
@@ -163,10 +187,17 @@ export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ succe
         white: config.white,
         middle: config.middle,
         night: config.night,
+        own_white: config.ownWhite,
+        own_middle: config.ownMiddle,
+        own_night: config.ownNight,
+        labor_white: config.laborWhite,
+        labor_night: config.laborNight,
+        daily_white: config.dailyWhite,
+        daily_night: config.dailyNight,
+        assess_amount: config.assessAmount,
         updated_at: new Date().toISOString()
       }, { onConflict: 'date' });
     
-    // 检查错误：如果 error 不存在或为空对象，视为成功
     if (error && Object.keys(error).length > 0) {
       console.warn('Save shift config warning:', error);
     }
@@ -190,6 +221,14 @@ export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promi
       white: config.white,
       middle: config.middle,
       night: config.night,
+      own_white: config.ownWhite,
+      own_middle: config.ownMiddle,
+      own_night: config.ownNight,
+      labor_white: config.laborWhite,
+      labor_night: config.laborNight,
+      daily_white: config.dailyWhite,
+      daily_night: config.dailyNight,
+      assess_amount: config.assessAmount,
       updated_at: new Date().toISOString()
     }));
     
@@ -244,7 +283,15 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
         configs[row.date] = {
           white: row.white ?? 70,
           middle: row.middle ?? 0,
-          night: row.night ?? 95
+          night: row.night ?? 95,
+          ownWhite: row.own_white ?? 0,
+          ownMiddle: row.own_middle ?? 0,
+          ownNight: row.own_night ?? 0,
+          laborWhite: row.labor_white ?? 0,
+          laborNight: row.labor_night ?? 0,
+          dailyWhite: row.daily_white ?? 0,
+          dailyNight: row.daily_night ?? 0,
+          assessAmount: row.assess_amount ?? 0
         };
       });
       return { data: configs };
