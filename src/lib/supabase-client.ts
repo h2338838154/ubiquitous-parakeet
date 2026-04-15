@@ -62,7 +62,7 @@ export interface LogisticsDataRow {
   发验人数: number;
   客服人数: number;
   接发员: number;
-  其他成本: number;
+  总成本: number;
   总盈亏: number;
   人数验证: number;
   总表人数: number;

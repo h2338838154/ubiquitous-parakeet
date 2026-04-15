@@ -561,7 +561,7 @@ export default function SmartPerformanceDashboard() {
         '文件人数': d.fileStaff,
         '发验人数': d.inspectStaff,
         '客服人数': d.serviceStaff,
-        '其他成本': Math.round(d.otherCost * 100) / 100,
+        '总成本': Math.round(d.otherCost * 100) / 100,
         '总盈亏': Math.round(d.totalProfit * 100) / 100,
         '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
       }));
@@ -684,7 +684,7 @@ export default function SmartPerformanceDashboard() {
         }
         const loopProfit = loopRevenue - loopSalary;
         
-        // 其他成本
+        // 总成本
         const otherCost = calcOtherCost(allocation.file, allocation.inspect, allocation.service, allocation.receive);
         
         // 总盈亏
@@ -810,7 +810,7 @@ export default function SmartPerformanceDashboard() {
     集包成本: Math.round(d.packageSalary),
     环线成本: Math.round(d.loopSalary),
     管理成本: Math.round(d.manageSalary),
-    其他成本: Math.round(d.otherCost)
+    总成本: Math.round(d.otherCost)
   })), [filteredData]);
   
   // Excel上传
@@ -933,7 +933,7 @@ export default function SmartPerformanceDashboard() {
       '卸车量': d.unloadCount, '卸车人数': d.unloadStaff, '卸车薪资': d.unloadSalary.toFixed(2), '卸车盈亏': d.unloadProfit.toFixed(2),
       '集包量': d.packageCount, '集包人数': d.packageStaff, '集包收入': d.packageRevenue.toFixed(2), '集包薪资': d.packageSalary.toFixed(2), '集包盈亏': d.packageProfit.toFixed(2),
       '环线量': d.loopCount, '环线人数': d.loopStaff, '环线收入': d.loopRevenue.toFixed(2), '环线薪资': d.loopSalary.toFixed(2), '环线盈亏': d.loopProfit.toFixed(2),
-      '管理薪资': d.manageSalary.toFixed(2), '其他成本': d.otherCost.toFixed(2),
+      '管理薪资': d.manageSalary.toFixed(2), '总成本': d.otherCost.toFixed(2),
       '总收入': (d.packageRevenue + d.loopRevenue).toFixed(2), '总薪资': (d.unloadSalary + d.packageSalary + d.loopSalary + d.manageSalary).toFixed(2), '利润': d.totalProfit.toFixed(2)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -1643,7 +1643,7 @@ export default function SmartPerformanceDashboard() {
                                 <Line type="monotone" dataKey="集包成本" stroke={COLORS.packageCost} strokeWidth={2} dot={{ r: 3 }} />
                                 <Line type="monotone" dataKey="环线成本" stroke={COLORS.loopCost} strokeWidth={2} dot={{ r: 3 }} />
                                 <Line type="monotone" dataKey="管理成本" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-                                <Line type="monotone" dataKey="其他成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="总成本" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
                               </LineChart>
                             </ResponsiveContainer>
                           </div>
