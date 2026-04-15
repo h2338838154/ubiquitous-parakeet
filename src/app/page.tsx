@@ -14,7 +14,7 @@ import {
 import {
   Download, AlertCircle, CheckCircle, FileSpreadsheet, Calendar,
   FileUp, Trash2, Users, TrendingUp, DollarSign, Package, Truck, ArrowUp, ArrowDown,
-  Cloud, CloudOff, RefreshCw, Save, Loader2, Menu, X, BarChart3, Sun, Moon, Sliders
+  Cloud, CloudOff, RefreshCw, Save, Loader2, Menu, X, BarChart3, Sun, Moon, Sliders, Calculator
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -1469,188 +1469,248 @@ export default function SmartPerformanceDashboard() {
                         </Button>
                       </div>
                       {/* 当前日期的班次配置 */}
-                      <div className="space-y-4">
-                        {/* 公式分配人员 */}
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                          <p className="text-xs text-slate-400 mb-3 font-medium">公式分配人员</p>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md">
-                                <span className="text-white font-bold text-xs">白</span>
+                      {(() => {
+                        const config = staffConfig[configDate] || getDefaultStaffConfig();
+                        // 计算合计人数
+                        const totalWhite = config.white + config.ownWhite + config.laborWhite + config.dailyWhite;
+                        const totalMiddle = config.middle + config.ownMiddle;
+                        const totalNight = config.night + config.ownNight + config.laborNight + config.dailyNight;
+                        const totalAll = totalWhite + totalMiddle + totalNight;
+                        // 计算成本（按小时平均）
+                        const whiteCostPerHour = (config.white + config.ownWhite + config.laborWhite + config.dailyWhite) * (config.white > 0 ? 160/11 : (config.laborWhite > 0 || config.dailyWhite > 0 ? (config.dailyWhite > 0 ? 150/11 : 18) : 0));
+                        const nightCostPerHour = (config.night + config.ownNight + config.laborNight + config.dailyNight) * (config.night > 0 ? 190/13 : (config.laborNight > 0 || config.dailyNight > 0 ? (config.dailyNight > 0 ? 180/13 : 18) : 0));
+                        const middleCostPerHour = config.ownMiddle * (160/11); // 中班按白班费率
+                        const totalCostPerHour = whiteCostPerHour + nightCostPerHour + middleCostPerHour;
+                        return (
+                          <div className="space-y-4">
+                            {/* 人员输入区域 */}
+                            <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                              <p className="text-xs text-slate-400 mb-3 font-medium flex items-center gap-2">
+                                <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
+                                自有人员配置（公式分配）
+                              </p>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
+                                      <span className="text-white font-bold text-xs">白</span>
+                                    </div>
+                                    <p className="text-xs text-amber-400">白班</p>
+                                  </div>
+                                  <Input
+                                    type="number"
+                                    value={config.white}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], white: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                                      <span className="text-white font-bold text-xs">中</span>
+                                    </div>
+                                    <p className="text-xs text-green-400">中班</p>
+                                  </div>
+                                  <Input
+                                    type="number"
+                                    value={config.middle}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], middle: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+                                      <span className="text-white font-bold text-xs">夜</span>
+                                    </div>
+                                    <p className="text-xs text-slate-400">夜班</p>
+                                  </div>
+                                  <Input
+                                    type="number"
+                                    value={config.night}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], night: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
                               </div>
-                              <div className="flex-1">
-                                <p className="text-xs text-slate-400">白班</p>
+                            </div>
+
+                            {/* 自有人员 */}
+                            <div className="p-3 bg-slate-800/50 rounded-xl border border-blue-700/50">
+                              <p className="text-xs text-blue-400 mb-3 font-medium flex items-center gap-2">
+                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                自有人员（160/11元/人/小时）
+                              </p>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">白班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.ownWhite}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownWhite: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">中班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.ownMiddle}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownMiddle: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">夜班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.ownNight}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownNight: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 劳务人员 */}
+                            <div className="p-3 bg-slate-800/50 rounded-xl border border-orange-700/50">
+                              <p className="text-xs text-orange-400 mb-3 font-medium flex items-center gap-2">
+                                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                                劳务人员（18元/人/小时）
+                              </p>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">白班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.laborWhite}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], laborWhite: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">夜班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.laborNight}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], laborNight: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 日结人员 */}
+                            <div className="p-3 bg-slate-800/50 rounded-xl border border-purple-700/50">
+                              <p className="text-xs text-purple-400 mb-3 font-medium flex items-center gap-2">
+                                <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                日结人员（白150/11、夜180/13元/人/小时）
+                              </p>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">白班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.dailyWhite}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], dailyWhite: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <p className="text-xs text-slate-400">夜班</p>
+                                  <Input
+                                    type="number"
+                                    value={config.dailyNight}
+                                    onChange={e => setStaffConfig(s => ({
+                                      ...s,
+                                      [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], dailyNight: Math.max(0, Number(e.target.value) || 0) }
+                                    }))}
+                                    className="w-full h-9 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 合计结果 */}
+                            <div className="p-3 bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-cyan-700/50 shadow-lg">
+                              <p className="text-xs text-cyan-400 mb-3 font-bold flex items-center gap-2">
+                                <Calculator className="w-4 h-4" />
+                                合计人数（公式分配）
+                              </p>
+                              <div className="grid grid-cols-4 gap-2">
+                                <div className="text-center p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                                  <p className="text-xs text-slate-400">白班合计</p>
+                                  <p className="text-lg font-bold text-amber-400">{totalWhite}</p>
+                                  <p className="text-xs text-amber-400/70">¥{whiteCostPerHour.toFixed(0)}/h</p>
+                                </div>
+                                <div className="text-center p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                                  <p className="text-xs text-slate-400">中班合计</p>
+                                  <p className="text-lg font-bold text-green-400">{totalMiddle}</p>
+                                  <p className="text-xs text-green-400/70">¥{middleCostPerHour.toFixed(0)}/h</p>
+                                </div>
+                                <div className="text-center p-2 bg-slate-500/10 rounded-lg border border-slate-500/20">
+                                  <p className="text-xs text-slate-400">夜班合计</p>
+                                  <p className="text-lg font-bold text-slate-300">{totalNight}</p>
+                                  <p className="text-xs text-slate-400/70">¥{nightCostPerHour.toFixed(0)}/h</p>
+                                </div>
+                                <div className="text-center p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                                  <p className="text-xs text-slate-400">总人数</p>
+                                  <p className="text-lg font-bold text-cyan-400">{totalAll}</p>
+                                  <p className="text-xs text-cyan-400/70">¥{totalCostPerHour.toFixed(0)}/h</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 考核金额 */}
+                            <div className="p-3 bg-slate-800/50 rounded-xl border border-rose-700/50">
+                              <p className="text-xs text-rose-400 mb-3 font-medium flex items-center gap-2">
+                                <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
+                                考核金额
+                              </p>
+                              <div className="flex items-center gap-3">
                                 <Input
                                   type="number"
-                                  value={staffConfig[configDate]?.white ?? 70}
+                                  value={config.assessAmount}
                                   onChange={e => setStaffConfig(s => ({
                                     ...s,
-                                    [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], white: Number(e.target.value) || 0 }
+                                    [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], assessAmount: Math.max(0, Number(e.target.value) || 0) }
                                   }))}
-                                  className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  className="flex-1 h-10 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
+                                  placeholder="输入考核金额"
                                 />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-md">
-                                <span className="text-white font-bold text-xs">中</span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-xs text-slate-400">中班</p>
-                                <Input
-                                  type="number"
-                                  value={staffConfig[configDate]?.middle ?? 0}
-                                  onChange={e => setStaffConfig(s => ({
-                                    ...s,
-                                    [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], middle: Number(e.target.value) || 0 }
-                                  }))}
-                                  className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center shadow-md">
-                                <span className="text-white font-bold text-xs">夜</span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-xs text-slate-400">夜班</p>
-                                <Input
-                                  type="number"
-                                  value={staffConfig[configDate]?.night ?? 95}
-                                  onChange={e => setStaffConfig(s => ({
-                                    ...s,
-                                    [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], night: Number(e.target.value) || 0 }
-                                  }))}
-                                  className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                                />
+                                <span className="text-slate-400 text-sm">元/天</span>
                               </div>
                             </div>
                           </div>
-                        </div>
-
-                        {/* 自有人员 */}
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-blue-700/50">
-                          <p className="text-xs text-blue-400 mb-3 font-medium">自有人员（白160/11、夜190/13元）</p>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">白班自有</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.ownWhite ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownWhite: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">中班自有</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.ownMiddle ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownMiddle: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">夜班自有</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.ownNight ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], ownNight: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 劳务人员 */}
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-orange-700/50">
-                          <p className="text-xs text-orange-400 mb-3 font-medium">劳务人员（18元/小时）</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">白班劳务</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.laborWhite ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], laborWhite: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">夜班劳务</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.laborNight ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], laborNight: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 日结人员 */}
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-purple-700/50">
-                          <p className="text-xs text-purple-400 mb-3 font-medium">日结人员（白150/11、夜180/13元）</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">白班日结</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.dailyWhite ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], dailyWhite: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                              <p className="text-xs text-slate-400">夜班日结</p>
-                              <Input
-                                type="number"
-                                value={staffConfig[configDate]?.dailyNight ?? 0}
-                                onChange={e => setStaffConfig(s => ({
-                                  ...s,
-                                  [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], dailyNight: Number(e.target.value) || 0 }
-                                }))}
-                                className="w-full h-8 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 考核金额 */}
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-rose-700/50">
-                          <p className="text-xs text-rose-400 mb-3 font-medium">考核金额</p>
-                          <div className="flex items-center gap-3">
-                            <Input
-                              type="number"
-                              value={staffConfig[configDate]?.assessAmount ?? 0}
-                              onChange={e => setStaffConfig(s => ({
-                                ...s,
-                                [configDate]: { ...getDefaultStaffConfig(), ...s[configDate], assessAmount: Number(e.target.value) || 0 }
-                              }))}
-                              className="flex-1 h-10 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200"
-                              placeholder="输入考核金额"
-                            />
-                            <span className="text-slate-400 text-sm">元</span>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                       
                       {/* 保存班次配置按钮 */}
                       <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-end">
