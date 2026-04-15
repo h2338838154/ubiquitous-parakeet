@@ -700,16 +700,17 @@ export default function SmartPerformanceDashboard() {
           const hour = parseInt(timeSlot.split('-')[0]);
           
           // 优先使用班次列，否则根据时间自动判断
+          // 白班: 7:00-12:00, 中班: 12:00-24:00(覆盖白班夜班), 夜班: 0:00-6:00
           let shift: string;
           if (shiftCol && row[shiftCol]) {
             const shiftValue = String(row[shiftCol!]).trim();
             if (shiftValue.includes('白')) shift = '白班';
             else if (shiftValue.includes('中')) shift = '中班';
             else if (shiftValue.includes('夜')) shift = '夜班';
-            else shift = hour >= 7 && hour < 14 ? '白班' : hour >= 14 && hour < 18 ? '中班' : '夜班';
+            else shift = hour >= 7 && hour < 12 ? '白班' : hour >= 12 ? '中班' : '夜班';
           } else {
-            // 自动判断: 白班(7-14), 中班(14-18), 夜班(其他)
-            shift = hour >= 7 && hour < 14 ? '白班' : hour >= 14 && hour < 18 ? '中班' : '夜班';
+            // 自动判断: 白班(7-12), 中班(12-24), 夜班(0-6)
+            shift = hour >= 7 && hour < 12 ? '白班' : hour >= 12 ? '中班' : '夜班';
           }
           
           return {
@@ -765,11 +766,13 @@ export default function SmartPerformanceDashboard() {
   
   // 下载模板
   const downloadTemplate = () => {
+    // 白班: 7:00-12:00, 中班: 12:00-24:00, 夜班: 0:00-6:00
     const template = [
-      { '日期': '4月1日', '时段': '0000-0100', '班次': '夜班', '卸车量': 16991, '集包量': 6568, '环线量': 1608 },
-      { '日期': '4月1日', '时段': '0700-0800', '班次': '白班', '卸车量': 1064, '集包量': 246, '环线量': 1528 },
-      { '日期': '4月1日', '时段': '0800-0900', '班次': '白班', '卸车量': 5592, '集包量': 4179, '环线量': 3243 },
-      { '日期': '4月1日', '时段': '1800-1900', '班次': '中班', '卸车量': 2000, '集包量': 800, '环线量': 500 },
+      { '日期': '4月1日', '时段': '0700-0800', '班次': '白班', '卸车量': 16991, '集包量': 6568, '环线量': 1608 },
+      { '日期': '4月1日', '时段': '1100-1200', '班次': '白班', '卸车量': 1064, '集包量': 246, '环线量': 1528 },
+      { '日期': '4月1日', '时段': '1200-1300', '班次': '中班', '卸车量': 5592, '集包量': 4179, '环线量': 3243 },
+      { '日期': '4月1日', '时段': '1800-1900', '班次': '中班', '卸车量': 3000, '集包量': 1200, '环线量': 800 },
+      { '日期': '4月1日', '时段': '0200-0300', '班次': '夜班', '卸车量': 2000, '集包量': 800, '环线量': 500 },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -1105,7 +1108,7 @@ export default function SmartPerformanceDashboard() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-slate-200 text-sm">白班</p>
-                                <p className="text-xs text-slate-400 hidden sm:block">07:00-18:00</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">07:00-12:00</p>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Input
@@ -1123,7 +1126,7 @@ export default function SmartPerformanceDashboard() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-slate-200 text-sm">中班</p>
-                                <p className="text-xs text-slate-400 hidden sm:block">可选</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">12:00-24:00</p>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Input
@@ -1141,7 +1144,7 @@ export default function SmartPerformanceDashboard() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-slate-200 text-sm">夜班</p>
-                                <p className="text-xs text-slate-400 hidden sm:block">18:00-07:00</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">00:00-06:00</p>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Input
@@ -1182,7 +1185,7 @@ export default function SmartPerformanceDashboard() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-slate-200 text-sm">白班</p>
-                                <p className="text-xs text-slate-400 hidden sm:block">07:00-18:00</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">07:00-12:00</p>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Input
