@@ -1,10 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // 允许的开发环境域名
+  // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
+  /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
-  
-  // 图片配置
   images: {
     remotePatterns: [
       {
@@ -14,9 +13,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
-  // 修复锁文件警告
-  outputFileTracingRoot: __dirname,
 };
 
 export default nextConfig;
