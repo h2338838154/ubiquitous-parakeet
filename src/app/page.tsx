@@ -22,7 +22,7 @@ import {
   saveLogisticsData, loadLogisticsData, saveShiftConfig,
   loadShiftConfigCloud, saveAllShiftConfigsCloud,
   clearLogisticsData, clearShiftConfigs, clearAllCloudData,
-  type LogisticsDataRow, type DailyStaffConfig, dateToExcelSerial, excelSerialToDate
+  type LogisticsDataRow, dateToExcelSerial, excelSerialToDate
 } from '@/lib/supabase-client';
 
 // ============ 类型定义 ============
@@ -483,7 +483,19 @@ export default function SmartPerformanceDashboard() {
             const dates = [...new Set(parsed.map(d => d.date))].sort();
             dates.forEach(date => {
               if (!savedStaffConfig[date]) {
-                savedStaffConfig[date] = { white: 70, middle: 0, night: 95 };
+                savedStaffConfig[date] = { 
+                  white: 70, 
+                  middle: 0, 
+                  night: 95,
+                  ownWhite: 0,
+                  ownMiddle: 0,
+                  ownNight: 0,
+                  laborWhite: 0,
+                  laborNight: 0,
+                  dailyWhite: 0,
+                  dailyNight: 0,
+                  assessAmount: 0
+                };
               }
             });
             
@@ -664,7 +676,15 @@ export default function SmartPerformanceDashboard() {
         configs: staffConfig,
         white: staffConfig[configDate]?.white ?? 70,
         middle: staffConfig[configDate]?.middle ?? 0,
-        night: staffConfig[configDate]?.night ?? 95
+        night: staffConfig[configDate]?.night ?? 95,
+        ownWhite: staffConfig[configDate]?.ownWhite ?? 0,
+        ownMiddle: staffConfig[configDate]?.ownMiddle ?? 0,
+        ownNight: staffConfig[configDate]?.ownNight ?? 0,
+        laborWhite: staffConfig[configDate]?.laborWhite ?? 0,
+        laborNight: staffConfig[configDate]?.laborNight ?? 0,
+        dailyWhite: staffConfig[configDate]?.dailyWhite ?? 0,
+        dailyNight: staffConfig[configDate]?.dailyNight ?? 0,
+        assessAmount: staffConfig[configDate]?.assessAmount ?? 0
       });
       
       // 同时保存班次配置到云端
@@ -809,29 +829,29 @@ export default function SmartPerformanceDashboard() {
         // 考核金额（从配置中获取）
         const assessAmount = dateConfig.assessAmount || 0;
         
-        // 总成本 = 所有成本项之和
+        // 总成本 = 所有成本项之和（确保都是有效数字）
         const totalCost = 
-          unloadSalary + 
-          packageSalary + 
-          loopSalary + 
-          manageSalary + 
-          socialSecurity +
-          laborCost +
-          ownWhiteCost +
-          ownMiddleCost +
-          ownNightCost +
-          dailyWhiteCost +
-          dailyNightCost +
-          serviceCost +
-          commercialInsurance +
-          orderClaim +
-          assessAmount;
+          Number(unloadSalary || 0) + 
+          Number(packageSalary || 0) + 
+          Number(loopSalary || 0) + 
+          Number(manageSalary || 0) + 
+          Number(socialSecurity || 0) +
+          Number(laborCost || 0) +
+          Number(ownWhiteCost || 0) +
+          Number(ownMiddleCost || 0) +
+          Number(ownNightCost || 0) +
+          Number(dailyWhiteCost || 0) +
+          Number(dailyNightCost || 0) +
+          Number(serviceCost || 0) +
+          Number(commercialInsurance || 0) +
+          Number(orderClaim || 0) +
+          Number(assessAmount || 0);
         
         // 总收入
-        const totalRevenue = packageRevenue + loopRevenue;
+        const totalRevenue = Number(packageRevenue || 0) + Number(loopRevenue || 0);
         
-        // 总利润 = 总收入 - 总成本
-        const totalProfit = totalRevenue - totalCost;
+        // 总利润 = 总收入 - 总成本（确保是有效数字）
+        const totalProfit = Number(totalRevenue) - Number(totalCost);
         
         return {
           ...row,
@@ -849,29 +869,30 @@ export default function SmartPerformanceDashboard() {
           middleStaff,
           nightStaff,
           // 成本项
-          laborCost,
-          ownWhiteCost,
-          ownNightCost,
-          dailyWhiteCost,
-          dailyNightCost,
-          manageSalary,
-          socialSecurity,
+          laborCost: laborCost || 0,
+          ownWhiteCost: ownWhiteCost || 0,
+          ownMiddleCost: ownMiddleCost || 0,
+          ownNightCost: ownNightCost || 0,
+          dailyWhiteCost: dailyWhiteCost || 0,
+          dailyNightCost: dailyNightCost || 0,
+          manageSalary: manageSalary || 0,
+          socialSecurity: socialSecurity || 0,
           businessTax: 0, // 业务税金单独计算
-          serviceCost,
-          commercialInsurance,
-          orderClaim,
-          assessAmount,
+          serviceCost: serviceCost || 0,
+          commercialInsurance: commercialInsurance || 0,
+          orderClaim: orderClaim || 0,
+          assessAmount: assessAmount || 0,
           // 业务数据
-          unloadSalary,
-          unloadProfit,
-          packageRevenue,
-          packageSalary,
-          packageProfit,
-          loopRevenue,
-          loopSalary,
-          loopProfit,
-          totalCost,
-          totalProfit
+          unloadSalary: unloadSalary || 0,
+          unloadProfit: unloadProfit || 0,
+          packageRevenue: packageRevenue || 0,
+          packageSalary: packageSalary || 0,
+          packageProfit: packageProfit || 0,
+          loopRevenue: loopRevenue || 0,
+          loopSalary: loopSalary || 0,
+          loopProfit: loopProfit || 0,
+          totalCost: totalCost || 0,
+          totalProfit: totalProfit || 0
         };
       });
       setCalculatedData(calculated);
@@ -890,15 +911,23 @@ export default function SmartPerformanceDashboard() {
   
   // 统计
   const stats = useMemo(() => {
-    const totalUnload = filteredData.reduce((s, d) => s + d.unloadCount, 0);
-    const totalPackage = filteredData.reduce((s, d) => s + d.packageCount, 0);
-    const totalLoop = filteredData.reduce((s, d) => s + d.loopCount, 0);
-    const totalRevenue = filteredData.reduce((s, d) => s + d.packageRevenue + d.loopRevenue, 0);
-    // 业务税金 = 总收入 * 0.94
-    const businessTax = totalRevenue * 0.94;
-    const totalCost = filteredData.reduce((s, d) => s + d.totalCost, 0);
-    const totalProfit = filteredData.reduce((s, d) => s + d.totalProfit, 0);
-    return { totalUnload, totalPackage, totalLoop, totalRevenue, businessTax, totalCost, totalProfit };
+    const totalUnload = filteredData.reduce((s, d) => s + (d.unloadCount || 0), 0);
+    const totalPackage = filteredData.reduce((s, d) => s + (d.packageCount || 0), 0);
+    const totalLoop = filteredData.reduce((s, d) => s + (d.loopCount || 0), 0);
+    const totalRevenue = filteredData.reduce((s, d) => s + (d.packageRevenue || 0) + (d.loopRevenue || 0), 0);
+    // 业务税金 = 总收入 * 6% (假设税率6%)
+    const businessTax = Number(totalRevenue) * 0.06;
+    const totalCost = filteredData.reduce((s, d) => s + Number(d.totalCost || 0), 0);
+    const totalProfit = filteredData.reduce((s, d) => s + Number(d.totalProfit || 0), 0);
+    return { 
+      totalUnload, 
+      totalPackage, 
+      totalLoop, 
+      totalRevenue, 
+      businessTax, 
+      totalCost, 
+      totalProfit 
+    };
   }, [filteredData]);
   
   // 切换日期时自动从云端加载班次配置
@@ -1047,7 +1076,19 @@ export default function SmartPerformanceDashboard() {
           setStaffConfig(prev => {
             const updated = { ...prev };
             newDates.forEach(date => {
-              updated[date] = { white: 70, middle: 0, night: 95 };
+              updated[date] = { 
+                white: 70, 
+                middle: 0, 
+                night: 95,
+                ownWhite: 0,
+                ownMiddle: 0,
+                ownNight: 0,
+                laborWhite: 0,
+                laborNight: 0,
+                dailyWhite: 0,
+                dailyNight: 0,
+                assessAmount: 0
+              };
             });
             return updated;
           });
@@ -1658,7 +1699,7 @@ export default function SmartPerformanceDashboard() {
                             <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
                             <div className="min-w-0">
                               <p className="text-cyan-200 text-xs sm:text-sm">总收入</p>
-                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalRevenue).toLocaleString()}</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalRevenue || 0).toLocaleString()}</p>
                             </div>
                           </div>
                         </CardContent>
@@ -1669,7 +1710,7 @@ export default function SmartPerformanceDashboard() {
                             <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
                             <div className="min-w-0">
                               <p className="text-red-200 text-xs sm:text-sm">总成本</p>
-                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalCost).toLocaleString()}</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalCost || 0).toLocaleString()}</p>
                             </div>
                           </div>
                         </CardContent>
@@ -1680,18 +1721,18 @@ export default function SmartPerformanceDashboard() {
                             <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />
                             <div className="min-w-0">
                               <p className="text-orange-200 text-xs sm:text-sm">业务税金</p>
-                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.businessTax).toLocaleString()}</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.businessTax || 0).toLocaleString()}</p>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className={`shadow-lg hover:shadow-xl transition-shadow ${stats.totalProfit >= 0 ? 'stat-card-profit' : 'stat-card-loss'}`}>
+                      <Card className={`shadow-lg hover:shadow-xl transition-shadow ${(stats.totalProfit || 0) >= 0 ? 'stat-card-profit' : 'stat-card-loss'}`}>
                         <CardContent className="p-3 sm:p-4">
                           <div className="flex items-center gap-2 mb-2">
-                            {stats.totalProfit >= 0 ? <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" /> : <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />}
+                            {(stats.totalProfit || 0) >= 0 ? <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" /> : <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 opacity-80" />}
                             <div className="min-w-0">
                               <p className="text-white/80 text-xs sm:text-sm">利润</p>
-                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalProfit).toLocaleString()}</p>
+                              <p className="text-lg sm:text-xl font-bold truncate">¥{Math.round(stats.totalProfit || 0).toLocaleString()}</p>
                             </div>
                           </div>
                         </CardContent>
@@ -1708,9 +1749,9 @@ export default function SmartPerformanceDashboard() {
                           数据明细
                         </CardTitle>
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-                          <span className="bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded-full">收 ¥{Math.round(stats.totalRevenue).toLocaleString()}</span>
-                          <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded-full">薪 ¥{Math.round(stats.totalSalary).toLocaleString()}</span>
-                          <span className={`px-2 py-1 rounded-full ${stats.totalProfit >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>利 ¥{Math.round(stats.totalProfit).toLocaleString()}</span>
+                          <span className="bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded-full">收 ¥{Math.round(stats.totalRevenue || 0).toLocaleString()}</span>
+                          <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded-full">支 ¥{Math.round(stats.totalCost || 0).toLocaleString()}</span>
+                          <span className={`px-2 py-1 rounded-full ${(stats.totalProfit || 0) >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>利 ¥{Math.round(stats.totalProfit || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </CardHeader>
