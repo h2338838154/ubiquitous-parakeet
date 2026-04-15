@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FetchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,35 +8,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new FetchClient(config, customHeaders);
+    // 使用原生 fetch 获取 URL 内容
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
 
-    const response = await client.fetch(url);
-
-    if (response.status_code !== 0) {
+    if (!response.ok) {
       return NextResponse.json(
-        { error: response.status_message || 'Failed to fetch URL' },
-        { status: 500 }
+        { error: 'Failed to fetch URL' },
+        { status: response.status }
       );
     }
 
-    // 提取纯文本内容
-    const textContent = response.content
-      .filter(item => item.type === 'text')
-      .map(item => item.text)
-      .join('\n');
+    const contentType = response.headers.get('content-type') || '';
+    const content = await response.text();
 
     return NextResponse.json({
-      title: response.title,
-      content: textContent,
-      url: response.url,
-      status_code: response.status_code
+      content,
+      contentType,
+      status: response.status,
     });
   } catch (error) {
     console.error('Fetch URL error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch URL' },
       { status: 500 }
     );
   }
