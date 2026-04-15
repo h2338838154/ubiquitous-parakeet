@@ -40,7 +40,7 @@ export interface LogisticsDataRow {
   卸车量: number;
   环线量: number;
   集包量: number;
-  管理: number;
+  管理人数: number;
   管理薪资: number;
   卸车人数: number;
   卸车人效: number;
