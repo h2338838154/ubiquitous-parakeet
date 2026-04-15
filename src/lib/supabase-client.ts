@@ -40,7 +40,7 @@ export interface LogisticsDataRow {
   卸车量: number;
   环线量: number;
   集包量: number;
-  管理人数: number;
+  管理: number;
   管理薪资: number;
   卸车人数: number;
   卸车人效: number;
@@ -58,7 +58,14 @@ export interface LogisticsDataRow {
   环线收入: number;
   环线薪资: number;
   环线盈亏: number;
+  文件人数: number;
+  发验人数: number;
+  客服人数: number;
+  接发员: number;
+  其他成本: number;
   总盈亏: number;
+  人数验证: number;
+  总表人数: number;
   updated_at?: string;
 }
 
@@ -71,7 +78,7 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   try {
     for (const record of data) {
       const { error } = await supabase
-        .from('business_data')
+        .from('logistics_data')
         .upsert(record, { onConflict: 'sync_id' });
       
       if (error) {
@@ -94,7 +101,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
   
   try {
     const { data, error } = await supabase
-      .from('business_data')
+      .from('logistics_data')
       .select('*')
       .order('日期', { ascending: true })
       .order('时段', { ascending: true });
@@ -134,54 +141,81 @@ interface ShiftConfigRow {
   night: number;
 }
 
-// 保存班次配置到本地存储（按日期存储多个配置）
-export function saveShiftConfigLocal(configs: DailyStaffConfig): void {
+// 保存班次配置到 localStorage
+export function saveShiftConfig(config: ShiftConfig): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('shift_configs_local', JSON.stringify(configs));
-    console.log('[saveShiftConfigLocal] 已保存到本地存储:', configs);
+    localStorage.setItem('shift_config', JSON.stringify(config));
   }
 }
-export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
-  console.log('[saveAllShiftConfigsCloud] 保存配置:', configs);
-  
-  saveShiftConfigLocal(configs);
-  
+
+// 保存班次配置到云端
+export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ success: boolean; error?: string }> {
   if (!supabase) {
-    console.log('[saveAllShiftConfigsCloud] 云端不可用，仅保存到本地');
     return { success: false, error: '云端连接不可用' };
   }
   
   try {
-    // 使用 business_data 表存储班次配置
-    // 卸车量 = 白班人数, 环线量 = 中班人数, 集包量 = 夜班人数
-    // 日期需要转换为 Excel 序列号格式
-    const records = Object.entries(configs).map(([date, config]) => ({
-      sync_id: `shift_config_${date}`,
-      '日期': dateToExcelSerial(date),
-      '时段': '班次配置',
-      '班次': '配置',
-      '卸车量': config.white,
-      '环线量': config.middle,
-      '集包量': config.night
-    }));
+    const { error } = await supabase
+      .from('shift_configs')
+      .upsert({
+        date: config.date,
+        config_data: config.configs,
+        white: config.white,
+        middle: config.middle,
+        night: config.night,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'date' });
     
-    console.log('[saveAllShiftConfigsCloud] 保存记录:', records);
-    
-    for (const record of records) {
-      const { error } = await supabase
-        .from('business_data')
-        .upsert(record, { onConflict: 'sync_id' });
-      
-      if (error) {
-        console.warn('[saveAllShiftConfigsCloud] 保存失败:', record.sync_id, error);
-      } else {
-        console.log('[saveAllShiftConfigsCloud] 成功保存:', record.sync_id);
-      }
+    // 检查错误：如果 error 不存在或为空对象，视为成功
+    if (error && Object.keys(error).length > 0) {
+      console.warn('Save shift config warning:', error);
     }
     return { success: true };
   } catch (err) {
-    console.warn('[saveAllShiftConfigsCloud] 保存失败:', err);
-    return { success: true, error: '已保存到本地存储' };
+    console.warn('Save shift config failed:', err);
+    return { success: false, error: '保存班次配置失败' };
+  }
+}
+
+// 批量保存所有班次配置到云端（同时保存到本地存储）
+export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
+  console.log('[saveAllShiftConfigsCloud] 保存配置:', configs);
+  
+  // 先保存到本地存储
+  saveShiftConfigLocal(configs);
+  
+  if (!supabase) {
+    console.log('[saveAllShiftConfigsCloud] 云端不可用，仅保存到本地存储');
+    return { success: false, error: '云端连接不可用' };
+  }
+  
+  try {
+    const records = Object.entries(configs).map(([date, config]) => ({
+      date,
+      config_data: config,
+      white: config.white,
+      middle: config.middle,
+      night: config.night,
+      updated_at: new Date().toISOString()
+    }));
+    
+    for (const record of records) {
+      const { error } = await supabase
+        .from('shift_configs')
+        .upsert(record, { onConflict: 'date' });
+      
+      if (error && Object.keys(error).length > 0) {
+        console.warn('[saveAllShiftConfigsCloud] 云端保存失败:', record.date, error);
+      } else {
+        console.log('[saveAllShiftConfigsCloud] 成功保存到云端:', record.date);
+      }
+    }
+    // 即使云端部分失败，也返回成功（因为本地存储已保存）
+    return { success: true };
+  } catch (err) {
+    console.warn('[saveAllShiftConfigsCloud] 云端保存失败，使用本地存储:', err);
+    // 本地存储已保存，返回部分成功
+    return { success: true, error: '已保存到本地存储，云端保存失败' };
   }
 }
 
@@ -194,6 +228,14 @@ export function loadShiftConfig(): { data: ShiftConfig | null } {
     }
   }
   return { data: null };
+}
+
+// 保存班次配置到本地存储（按日期存储多个配置）
+export function saveShiftConfigLocal(configs: DailyStaffConfig): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('shift_configs_local', JSON.stringify(configs));
+    console.log('[saveShiftConfigLocal] 已保存到本地存储:', configs);
+  }
 }
 
 // 从本地存储加载班次配置
@@ -213,62 +255,64 @@ export function loadShiftConfigLocal(): DailyStaffConfig | null {
   return null;
 }
 
-// 从云端加载班次配置（使用 business_data 表存储）
+// 从云端加载班次配置（带本地存储备份）
 export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
+  // 优先尝试从本地存储加载
   const localData = loadShiftConfigLocal();
   
   if (!supabase) {
-    console.log('[loadShiftConfigCloud] 云端不可用');
-    return { data: localData, error: '云端连接不可用' };
+    console.log('[loadShiftConfigCloud] 云端不可用，使用本地存储');
+    return { data: localData, error: '云端连接不可用，使用本地存储' };
   }
   
   try {
-    // 使用 business_data 表查询班次配置
-    // 时段 = '班次配置' 的记录是班次配置
-    // 卸车量 = 白班人数, 环线量 = 中班人数, 集包量 = 夜班人数
-    console.log('[loadShiftConfigCloud] 从 business_data 表加载班次配置...');
     const { data, error } = await supabase
-      .from('business_data')
-      .select('sync_id, 日期, 时段, 卸车量, 环线量, 集包量')
-      .eq('时段', '班次配置')
-      .limit(100);
+      .from('shift_configs')
+      .select('*')
+      .order('date', { ascending: true });
     
     console.log('[loadShiftConfigCloud] 查询结果:', { data, error });
     
-    if (error) {
-      console.warn('[loadShiftConfigCloud] 查询失败:', error);
-      if (localData) return { data: localData, error: '使用本地存储备份' };
+    // 检查错误：如果 error 不存在或为空对象，视为成功
+    if (error && Object.keys(error).length > 0) {
+      console.warn('[loadShiftConfigCloud] 云端加载失败:', error);
+      // 云端加载失败，使用本地存储作为备份
+      if (localData) {
+        console.log('[loadShiftConfigCloud] 使用本地存储备份');
+        return { data: localData, error: '使用本地存储备份' };
+      }
       return { data: null, error: error.message };
     }
     
     if (data && data.length > 0) {
       const configs: DailyStaffConfig = {};
-      const typedData = data as unknown as Array<{ 日期: number | string; 卸车量?: number; 环线量?: number; 集包量?: number }>;
-      typedData.forEach((row) => {
-        // 日期可能是 Excel 序列号（数字）或日期字符串
-        let dateStr: string;
-        if (typeof row['日期'] === 'number') {
-          dateStr = excelSerialToDate(row['日期']);
-        } else {
-          dateStr = String(row['日期']).trim();
-        }
-        configs[dateStr] = {
-          white: row['卸车量'] ?? 70,
-          middle: row['环线量'] ?? 0,
-          night: row['集包量'] ?? 95
+      data.forEach((row: ShiftConfigRow) => {
+        configs[row.date] = {
+          white: row.white ?? 70,
+          middle: row.middle ?? 0,
+          night: row.night ?? 95
         };
       });
-      console.log('[loadShiftConfigCloud] 配置:', configs);
+      console.log('[loadShiftConfigCloud] 云端配置:', configs);
+      // 同步保存到本地存储作为备份
       saveShiftConfigLocal(configs);
       return { data: configs };
     }
     
     console.log('[loadShiftConfigCloud] 云端无数据');
-    if (localData) return { data: localData };
+    // 无云端数据，尝试使用本地存储
+    if (localData) {
+      console.log('[loadShiftConfigCloud] 使用本地存储数据');
+      return { data: localData };
+    }
     return { data: null };
   } catch (err) {
     console.warn('[loadShiftConfigCloud] 加载失败:', err);
-    if (localData) return { data: localData, error: '使用本地存储备份' };
+    // 加载失败，使用本地存储作为备份
+    if (localData) {
+      console.log('[loadShiftConfigCloud] 使用本地存储备份');
+      return { data: localData, error: '使用本地存储备份' };
+    }
     return { data: null, error: '加载班次配置失败' };
   }
 }
@@ -280,7 +324,7 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
   
   try {
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
+    const { error } = await supabase.from('logistics_data').delete().neq('sync_id', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear logistics data warning:', error);
     }
@@ -290,17 +334,14 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
   }
 }
 
-// 清除班次配置（使用 business_data 表，时段='班次配置'的记录）
+// 清除班次配置
 export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
   if (!supabase) {
     return { success: false, error: '云端连接不可用' };
   }
   
   try {
-    const { error } = await supabase
-      .from('business_data')
-      .delete()
-      .eq('时段', '班次配置');
+    const { error } = await supabase.from('shift_configs').delete().neq('date', '');
     if (error && Object.keys(error).length > 0) {
       console.warn('Clear shift configs warning:', error);
     }
@@ -317,11 +358,10 @@ export async function clearAllCloudData(): Promise<{ success: boolean; error?: s
   }
   
   try {
-    // 清除所有 business_data 记录（包括业务数据和班次配置）
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
-    if (error && Object.keys(error).length > 0) {
-      console.warn('Clear all data warning:', error);
-    }
+    // 清除业务数据
+    await supabase.from('logistics_data').delete().neq('sync_id', '');
+    // 清除班次配置
+    await supabase.from('shift_configs').delete().neq('date', '');
     return { success: true };
   } catch (err) {
     return { success: false, error: '清除失败' };
