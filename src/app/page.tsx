@@ -268,6 +268,10 @@ export default function SmartPerformanceDashboard() {
   const [hasCloudData, setHasCloudData] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'config' | 'daily' | 'charts'>('config');
+  // 全局班次配置开关（true=所有日期使用相同配置，false=按日期区分）
+  const [useGlobalShiftConfig, setUseGlobalShiftConfig] = useState(true);
+  // 全局班次人数（当 useGlobalShiftConfig 为 true 时使用）
+  const [globalShiftConfig, setGlobalShiftConfig] = useState({ white: 70, middle: 0, night: 95 });
   
   // 检查云端连接并自动加载数据
   useEffect(() => {
@@ -538,9 +542,11 @@ export default function SmartPerformanceDashboard() {
         const isWhite = row.shift === '白班';
         const isMiddle = row.shift === '中班';
         
-        // 获取该日期的班次配置，如果没有则使用默认值
-        const dateConfig = staffConfig[row.date] || { white: 70, middle: 0, night: 95 };
-        const totalStaff = isWhite ? dateConfig.white : isMiddle ? dateConfig.middle : dateConfig.night;
+        // 获取班次配置：优先使用全局配置，否则使用按日期配置
+        const effectiveConfig = useGlobalShiftConfig 
+          ? globalShiftConfig 
+          : (staffConfig[row.date] || { white: 70, middle: 0, night: 95 });
+        const totalStaff = isWhite ? effectiveConfig.white : isMiddle ? effectiveConfig.middle : effectiveConfig.night;
         const allocation = smartAllocate(totalStaff, row.unloadCount, row.packageCount, row.loopCount, isWhite, isMiddle);
         
         const manageSalary = calcManageSalary(row.manageCount);
@@ -565,7 +571,7 @@ export default function SmartPerformanceDashboard() {
       });
       setCalculatedData(calculated);
     }
-  }, [uploadedData, staffConfig]);
+  }, [uploadedData, staffConfig, useGlobalShiftConfig, globalShiftConfig]);
   
   // 筛选
   const filteredData = useMemo(() => {
@@ -1058,53 +1064,130 @@ export default function SmartPerformanceDashboard() {
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Users className="w-5 h-5" />
                         班次配置
-                        <Badge className="ml-auto bg-white/20 text-white text-xs">按日期区分</Badge>
+                        <Badge className={`ml-auto text-xs ${useGlobalShiftConfig ? 'bg-emerald-500/80' : 'bg-white/20'} text-white`}>
+                          {useGlobalShiftConfig ? '全局统一' : '按日期区分'}
+                        </Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4">
-                      {/* 日期选择 + 应用按钮 */}
+                      {/* 全局/按日期切换 */}
                       <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
-                        <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <span className="font-medium text-slate-300 text-sm flex-shrink-0">配置日期</span>
-                        <Select value={configDate} onValueChange={setConfigDate}>
-                          <SelectTrigger className="flex-1 min-w-0 bg-slate-700/50 border-slate-600 text-slate-200">
-                            <SelectValue placeholder="选择日期" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-slate-800 border-slate-700">
-                            {availableDates.map(d => (
-                              <SelectItem key={d} value={d} className="text-slate-200 hover:bg-slate-700">{d}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button 
-                          size="sm" 
-                          className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white shadow-md flex-shrink-0"
-                          onClick={() => {
-                            // 将当前配置的班次人数同步到当天所有班次
-                            const currentConfig = staffConfig[configDate] || { white: 70, middle: 0, night: 95 };
-                            // 保持当前配置不变，只是标记已应用
-                            setNotification({ type: 'success', message: `班次配置已更新: 白班${currentConfig.white}人/中班${currentConfig.middle}人/夜班${currentConfig.night}人` });
-                          }}
-                        >
-                          <Save className="w-4 h-4 mr-1" />
-                          应用到当天
-                        </Button>
+                        <span className="font-medium text-slate-300 text-sm">配置模式</span>
+                        <div className="flex items-center gap-2 ml-auto">
+                          <Button
+                            size="sm"
+                            variant={useGlobalShiftConfig ? "default" : "outline"}
+                            className={useGlobalShiftConfig ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600"}
+                            onClick={() => setUseGlobalShiftConfig(true)}
+                          >
+                            全局统一
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={!useGlobalShiftConfig ? "default" : "outline"}
+                            className={!useGlobalShiftConfig ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600"}
+                            onClick={() => setUseGlobalShiftConfig(false)}
+                          >
+                            按日期区分
+                          </Button>
+                        </div>
                       </div>
-                      {/* 当前日期的班次配置 */}
-                      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-amber-500/10 to-amber-600/5 rounded-xl border border-amber-500/30">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/30">
-                            <span className="text-white font-bold text-sm">白</span>
+                      
+                      {useGlobalShiftConfig ? (
+                        /* 全局班次配置 */
+                        <div className="space-y-4">
+                          <p className="text-sm text-slate-400">全局统一配置：所有日期的班次使用相同人数设置</p>
+                          <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-amber-500/10 to-amber-600/5 rounded-xl border border-amber-500/30">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/30">
+                                <span className="text-white font-bold text-sm">白</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-200 text-sm">白班</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">07:00-18:00</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={globalShiftConfig.white}
+                                  onChange={e => setGlobalShiftConfig(s => ({ ...s, white: Number(e.target.value) || 0 }))}
+                                  className="w-16 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200 focus:border-amber-500"
+                                />
+                                <span className="text-slate-400 text-xs">人</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-500/10 to-green-600/5 rounded-xl border border-green-500/30">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-green-500/30">
+                                <span className="text-white font-bold text-sm">中</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-200 text-sm">中班</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">可选</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={globalShiftConfig.middle}
+                                  onChange={e => setGlobalShiftConfig(s => ({ ...s, middle: Number(e.target.value) || 0 }))}
+                                  className="w-16 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200 focus:border-green-500"
+                                />
+                                <span className="text-slate-400 text-xs">人</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-slate-600/20 to-slate-700/10 rounded-xl border border-slate-600/30">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0 shadow-md">
+                                <span className="text-white font-bold text-sm">夜</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-200 text-sm">夜班</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">18:00-07:00</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={globalShiftConfig.night}
+                                  onChange={e => setGlobalShiftConfig(s => ({ ...s, night: Number(e.target.value) || 0 }))}
+                                  className="w-16 text-center font-bold bg-slate-700/50 border-slate-600 text-slate-200 focus:border-indigo-500"
+                                />
+                                <span className="text-slate-400 text-xs">人</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-slate-200 text-sm">白班</p>
-                            <p className="text-xs text-slate-400 hidden sm:block">07:00-18:00</p>
+                          <p className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg">
+                            修改后，所有白班/中班/夜班数据的人员分配和成本将自动重新计算
+                          </p>
+                        </div>
+                      ) : (
+                        /* 按日期区分的班次配置 */
+                        <>
+                          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
+                            <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                            <span className="font-medium text-slate-300 text-sm flex-shrink-0">配置日期</span>
+                            <Select value={configDate} onValueChange={setConfigDate}>
+                              <SelectTrigger className="flex-1 min-w-0 bg-slate-700/50 border-slate-600 text-slate-200">
+                                <SelectValue placeholder="选择日期" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-800 border-slate-700">
+                                {availableDates.map(d => (
+                                  <SelectItem key={d} value={d} className="text-slate-200 hover:bg-slate-700">{d}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={staffConfig[configDate]?.white ?? 70}
-                              onChange={e => setStaffConfig(s => ({
+                          <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-amber-500/10 to-amber-600/5 rounded-xl border border-amber-500/30">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/30">
+                                <span className="text-white font-bold text-sm">白</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-200 text-sm">白班</p>
+                                <p className="text-xs text-slate-400 hidden sm:block">07:00-18:00</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={staffConfig[configDate]?.white ?? 70}
+                                  onChange={e => setStaffConfig(s => ({
                                 ...s,
                                 [configDate]: { ...s[configDate] || { white: 70, middle: 0, night: 95 }, white: Number(e.target.value) || 0 }
                               }))}
@@ -1156,7 +1239,6 @@ export default function SmartPerformanceDashboard() {
                           </div>
                         </div>
                       </div>
-                      
                       {/* 保存班次配置按钮 */}
                       <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-end">
                         <Button 
@@ -1164,8 +1246,17 @@ export default function SmartPerformanceDashboard() {
                           className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-md"
                           onClick={async () => {
                             // 保存班次配置到云端
-                            const result = await saveAllShiftConfigsCloud(staffConfig);
+                            // 如果使用全局配置，则为所有日期创建相同配置
+                            const configsToSave = useGlobalShiftConfig 
+                              ? Object.fromEntries(availableDates.map(d => [d, globalShiftConfig]))
+                              : staffConfig;
+                            const result = await saveAllShiftConfigsCloud(configsToSave);
                             if (result.success) {
+                              // 同时保存全局配置状态到本地
+                              localStorage.setItem('global_shift_config', JSON.stringify({
+                                useGlobal: useGlobalShiftConfig,
+                                config: globalShiftConfig
+                              }));
                               setNotification({ type: 'success', message: '班次配置已保存到云端' });
                             } else {
                               setNotification({ type: 'error', message: '保存失败: ' + result.error });
@@ -1176,6 +1267,8 @@ export default function SmartPerformanceDashboard() {
                           仅保存班次配置
                         </Button>
                       </div>
+                      </>
+                      )}
                     </CardContent>
                   </Card>
                   
