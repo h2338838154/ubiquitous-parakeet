@@ -72,21 +72,30 @@ export interface LogisticsDataRow {
   updated_at?: string;
 }
 
-// 保存数据
+// 保存数据 - 使用 REST API 绕过 schema 缓存
 export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return { success: false, error: '云端连接不可用' };
   }
   
   try {
     for (const record of data) {
-      const { error } = await supabase
-        .from('business_data')
-        .upsert(record, { onConflict: 'sync_id' });
+      // 使用 REST API 直接 POST，绕过 schema 缓存
+      const response = await fetch(`${supabaseUrl}/rest/v1/business_data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(record)
+      });
       
-      if (error) {
-        console.error('Save error:', error);
-        return { success: false, error: error.message };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Save error:', response.status, errorText);
+        return { success: false, error: `${response.status}: ${errorText}` };
       }
     }
     return { success: true };
@@ -96,24 +105,31 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
   }
 }
 
-// 加载数据
+// 加载数据 - 使用 REST API 绕过 schema 缓存
 export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; error?: string }> {
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return { data: [], error: '云端连接不可用' };
   }
   
   try {
-    const { data, error } = await supabase
-      .from('business_data')
-      .select('*')
-      .order('日期', { ascending: true })
-      .order('时段', { ascending: true });
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/business_data?select=*&order=日期.asc&order=时段.asc`,
+      {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        }
+      }
+    );
     
-    if (error) {
-      console.error('Load error:', error);
-      return { data: [], error: error.message };
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Load error:', response.status, errorText);
+      return { data: [], error: `${response.status}: ${errorText}` };
     }
-    return { data: (data as LogisticsDataRow[]) || [] };
+    
+    const data = await response.json();
+    return { data: data || [] };
   } catch (err) {
     console.error('Load error:', err);
     return { data: [], error: '加载失败' };
@@ -289,19 +305,32 @@ export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig |
   }
 }
 
-// 清除数据（不清除班次配置）
+// 清除数据（不清除班次配置）- 使用 REST API
 export async function clearLogisticsData(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return { success: false, error: '云端连接不可用' };
   }
   
   try {
-    const { error } = await supabase.from('business_data').delete().neq('sync_id', '');
-    if (error && Object.keys(error).length > 0) {
-      console.warn('Clear logistics data warning:', error);
+    // 使用 DELETE 方法清除所有数据
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/business_data?sync_id=not.is.null`,
+      {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn('Clear warning:', response.status, errorText);
     }
     return { success: true };
   } catch (err) {
+    console.warn('Clear error:', err);
     return { success: false, error: '清除失败' };
   }
 }
