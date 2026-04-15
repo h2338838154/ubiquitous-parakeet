@@ -58,13 +58,7 @@ export interface LogisticsDataRow {
   环线收入: number;
   环线薪资: number;
   环线盈亏: number;
-  文件人数: number;
-  发验人数: number;
-  客服人数: number;
-  接发员: number;
   总盈亏: number;
-  人数验证: number;
-  总表人数: number;
   updated_at?: string;
 }
 

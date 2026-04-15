@@ -311,9 +311,9 @@ export default function SmartPerformanceDashboard() {
               unloadStaff: row['卸车人数'] || 0,
               packageStaff: row['集包人数'] || 0,
               loopStaff: row['环线人数'] || 0,
-              fileStaff: row['文件人数'] || 0,
-              inspectStaff: row['发验人数'] || 0,
-              serviceStaff: row['客服人数'] || 0,
+              fileStaff: 0,
+              inspectStaff: 0,
+              serviceStaff: 0,
               receiveStaff: 0
             }));
             setUploadedData(parsed);
@@ -396,9 +396,9 @@ export default function SmartPerformanceDashboard() {
             unloadStaff: row['卸车人数'] || 0,
             packageStaff: row['集包人数'] || 0,
             loopStaff: row['环线人数'] || 0,
-            fileStaff: row['文件人数'] || 0,
-            inspectStaff: row['发验人数'] || 0,
-            serviceStaff: row['客服人数'] || 0,
+            fileStaff: 0,
+            inspectStaff: 0,
+            serviceStaff: 0,
             receiveStaff: 0
           };
         });
@@ -483,11 +483,7 @@ export default function SmartPerformanceDashboard() {
         '环线收入': Math.round(d.loopRevenue * 100) / 100,
         '环线薪资': Math.round(d.loopSalary * 100) / 100,
         '环线盈亏': Math.round(d.loopProfit * 100) / 100,
-        '文件人数': d.fileStaff,
-        '发验人数': d.inspectStaff,
-        '客服人数': d.serviceStaff,
-        '总盈亏': Math.round(d.totalProfit * 100) / 100,
-        '总表人数': d.unloadStaff + d.packageStaff + d.loopStaff + d.manageCount + d.fileStaff + d.inspectStaff + d.serviceStaff + d.receiveStaff
+        '总盈亏': Math.round(d.totalProfit * 100) / 100
       }));
       
       // 先清除云端旧数据，再保存新数据（确保数据一致）
