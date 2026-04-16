@@ -489,6 +489,7 @@ function autoCalculateAllocation(
   if (!template) {
     // 没有模板时使用默认计算
     const total = getTimeSlotShiftTotal(timeSlot, config);
+    console.log('[DEBUG autoCalculate] 无模板时段:', timeSlot, '总人数:', total);
     return {
       unload: Math.round(total * 0.30),
       package: Math.round(total * 0.35),
@@ -499,6 +500,8 @@ function autoCalculateAllocation(
   // 计算该时段的班次总人数
   const totalStaff = getTimeSlotShiftTotal(timeSlot, config);
   const templateTotal = template.unload + template.package + template.loop;
+  
+  console.log('[DEBUG autoCalculate] 时段:', timeSlot, '模板合计:', templateTotal, '实际总人数:', totalStaff);
   
   // 按比例缩放
   const scale = totalStaff / templateTotal;
@@ -533,6 +536,11 @@ function smartAllocate(
   // 根据班次配置和时段模板计算人数分配
   const hour = parseInt(timeSlot.split('-')[0]);
   const timeSlotConfig = autoCalculateAllocation(timeSlot, config);
+  
+  // 调试日志
+  console.log('[DEBUG smartAllocate] 时段:', timeSlot, 
+    '白班自有:', config.ownWhite, '白班劳务:', config.laborWhite, '白班日结:', config.dailyWhite,
+    '夜班自有:', config.ownNight, '夜班劳务:', config.laborNight, '夜班日结:', config.dailyNight);
   
   // 直接使用计算的人数（卸车+集包+环线 = 该时段总上班人数）
   let unload = timeSlotConfig.unload;
@@ -964,6 +972,7 @@ export default function SmartPerformanceDashboard() {
     if (uploadedData.length > 0) {
       console.log('[DEBUG] staffConfig keys:', Object.keys(staffConfig));
       console.log('[DEBUG] recalculating due to staffConfig change:', JSON.stringify(staffConfig));
+      console.log('[DEBUG] 白班劳务:', staffConfig[configDate]?.laborWhite, '夜班劳务:', staffConfig[configDate]?.laborNight);
       const calculated = uploadedData.map(row => {
         currentTimeSlot = row.timeSlot;
         
@@ -1127,7 +1136,7 @@ export default function SmartPerformanceDashboard() {
       });
       setCalculatedData(calculated);
     }
-  }, [uploadedData, staffConfig]);
+  }, [uploadedData, staffConfig, selectedDate]);
   
   // 筛选
   const filteredData = useMemo(() => {
