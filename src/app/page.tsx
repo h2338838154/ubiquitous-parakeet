@@ -413,61 +413,63 @@ interface StaffAllocation {
 
 /**
  * 根据班次总人数自动计算各岗位人数
- * 基于卸车与集包网格作业记录表格的比例
+ * 核心原则：卸车 + 集包 + 环线 = 总人数（总人数包含所有人员）
  * 
  * @param totalStaff - 班次总人数（自有+劳务+日结）
  * @param hour - 时段小时数（0-23）
- * @returns 各岗位人数
+ * @returns 各岗位人数（卸车+集包+环线 = totalStaff）
  */
 function autoCalculateAllocation(totalStaff: number, hour: number): TimeSlotAllocation {
-  // 各班次的基础岗位比例（基于表格数据分析）
-  // 白班（07-12点）：卸车比例较低，环线比例较高（高峰期）
-  // 中班（12-18点）：卸车比例提高，环线比例降低
-  // 夜班（18-07点）：整体卸车、集包、环线比例均匀
+  // 安全检查
+  if (totalStaff <= 0) {
+    return { unload: 1, package: 1, loop: 1 };
+  }
+  
+  // 根据表格数据分析的各时段岗位比例
+  // 白班上午(07-12)：卸车≈15%, 集包≈30%, 环线≈55%
+  // 中班/下午(12-18)：卸车≈25%, 集包≈35%, 环线≈40%
+  // 夜班(18-07)：卸车≈18%, 集包≈28%, 环线≈54%
   
   let unloadRatio: number;
   let packageRatio: number;
   let loopRatio: number;
   
-  // 固定岗位（特快、文件、发验、客服等）
-  const fixedStaff = 4 + 4; // 特快4 + 文件/发验/客服/接车 ≈ 4人
-  
-  // 可分配人数
-  const allocatable = Math.max(1, totalStaff - fixedStaff);
-  
   if (hour >= 7 && hour < 12) {
-    // 白班上午：业务高峰期，环线需求大
-    // 比例：卸车≈15%, 集包≈30%, 环线≈55%
+    // 白班上午：环线比例最高（业务高峰期）
     unloadRatio = 0.15;
     packageRatio = 0.30;
     loopRatio = 0.55;
   } else if (hour >= 12 && hour < 18) {
-    // 中班下午：卸车需求增加，环线减少
-    // 比例：卸车≈25%, 集包≈35%, 环线≈40%
+    // 中班/下午：卸车比例提高
     unloadRatio = 0.25;
     packageRatio = 0.35;
     loopRatio = 0.40;
   } else {
-    // 夜班：均匀分配
-    // 比例：卸车≈18%, 集包≈28%, 环线≈54%
+    // 夜班：环线比例较高
     unloadRatio = 0.18;
     packageRatio = 0.28;
     loopRatio = 0.54;
   }
   
-  // 计算各岗位人数
-  let unload = Math.round(allocatable * unloadRatio);
-  let package_ = Math.round(allocatable * packageRatio);
-  let loop = Math.round(allocatable * loopRatio);
+  // 直接按比例分配：卸车 + 集包 + 环线 = 总人数
+  let unload = Math.round(totalStaff * unloadRatio);
+  let package_ = Math.round(totalStaff * packageRatio);
+  let loop = Math.round(totalStaff * loopRatio);
   
-  // 复用逻辑：卸车和集包部分人员可复用去环线
-  // 卸车复用：5-15%去环线
-  // 集包复用：10-20%去环线
+  // 平衡调整：确保总人数等于 totalStaff
+  const sum = unload + package_ + loop;
+  if (sum !== totalStaff) {
+    // 差异调整到环线（最大比例岗位）
+    loop += (totalStaff - sum);
+  }
+  
+  // 复用逻辑：卸车和集包部分人员复用去环线
+  // 复用后，卸车和集包实际人数减少，环线人数增加
   let reuseFromUnload = 0;
   let reuseFromPackage = 0;
   
   if (hour >= 7 && hour < 12) {
-    // 白班：复用较多（高峰期需要更多环线人手）
+    // 白班：复用较多
     reuseFromUnload = Math.min(Math.floor(unload * 0.20), 3);
     reuseFromPackage = Math.min(Math.floor(package_ * 0.25), 4);
   } else if (hour >= 12 && hour < 18) {
@@ -483,12 +485,13 @@ function autoCalculateAllocation(totalStaff: number, hour: number): TimeSlotAllo
   // 复用后实际人数
   const actualUnload = Math.max(1, unload - reuseFromUnload);
   const actualPackage = Math.max(1, package_ - reuseFromPackage);
-  const actualLoop = loop + reuseFromUnload + reuseFromPackage;
+  // 复用后环线人数增加，但总人数仍保持为 totalStaff
+  const actualLoop = totalStaff - actualUnload - actualPackage;
   
   return {
     unload: actualUnload,
     package: actualPackage,
-    loop: actualLoop
+    loop: Math.max(1, actualLoop)
   };
 }
 
@@ -512,30 +515,15 @@ function smartAllocate(
   const hour = parseInt(currentTimeSlot.split('-')[0]);
   const timeSlotConfig = autoCalculateAllocation(totalStaff, hour);
   
-  // 直接使用自动计算的人数
+  // 直接使用自动计算的人数（卸车+集包+环线 = 总人数）
   const unload = timeSlotConfig.unload;
   const package_ = timeSlotConfig.package;
   const loop = timeSlotConfig.loop;
   
-  // 固定岗位（根据班次）
-  let file = 0;
-  let inspect = 0;
-  let service = 0;
-  
-  if (hour >= 7 && hour < 12) {
-    // 白班
-    inspect = 2;
-    service = 2;
-  } else if (hour >= 12 && hour < 18) {
-    // 中班
-    file = 2;
-    inspect = 2;
-    service = 1;
-  } else {
-    // 夜班
-    file = 4;
-    inspect = 3;
-  }
+  // 固定岗位设为0（所有人员都分配到卸车、集包、环线）
+  const file = 0;
+  const inspect = 0;
+  const service = 0;
   
   // 复用人数计算（用于记录）
   const reuseFromUnload = Math.min(Math.floor(timeSlotConfig.unload * (hour >= 7 && hour < 12 ? 0.20 : 0.10)), 2);
