@@ -84,7 +84,7 @@ interface TimeSlotAllocation {
   loop: number;     // 环线人数
 }
 
-// 班次配置接口 - 包含所有人员类型和时段人数配置
+// 班次配置接口 - 包含所有人员类型
 interface StaffConfig {
   // 自有人员
   ownWhite: number;   // 白班自有人员
@@ -98,10 +98,6 @@ interface StaffConfig {
   dailyNight: number;   // 夜班日结人员
   // 考核金额
   assessAmount: number;
-  // 时段人数配置（白班：07-18点，每小时一个时段）
-  whiteTimeSlots?: Record<string, TimeSlotAllocation>;
-  // 时段人数配置（夜班：18-07点，每小时一个时段）
-  nightTimeSlots?: Record<string, TimeSlotAllocation>;
 }
 
 type DailyStaffConfig = Record<string, StaffConfig>;
@@ -262,38 +258,6 @@ function getStaffForTimeSlot(
 }
 
 // 获取班次默认配置
-// 白班默认时段配置（07:00-18:00，每小时一个时段）
-const DEFAULT_WHITE_TIMESLOTS: Record<string, TimeSlotAllocation> = {
-  '07': { unload: 8, package: 12, loop: 12 },
-  '08': { unload: 10, package: 15, loop: 18 },
-  '09': { unload: 10, package: 15, loop: 18 },
-  '10': { unload: 10, package: 15, loop: 18 },
-  '11': { unload: 10, package: 15, loop: 18 },
-  '12': { unload: 10, package: 15, loop: 18 },
-  '13': { unload: 10, package: 15, loop: 18 },
-  '14': { unload: 10, package: 15, loop: 18 },
-  '15': { unload: 10, package: 15, loop: 18 },
-  '16': { unload: 10, package: 15, loop: 18 },
-  '17': { unload: 10, package: 15, loop: 18 },
-};
-
-// 夜班默认时段配置（18:00-次日07:00，每小时一个时段）
-const DEFAULT_NIGHT_TIMESLOTS: Record<string, TimeSlotAllocation> = {
-  '18': { unload: 10, package: 15, loop: 18 },
-  '19': { unload: 10, package: 15, loop: 18 },
-  '20': { unload: 10, package: 15, loop: 18 },
-  '21': { unload: 10, package: 15, loop: 18 },
-  '22': { unload: 10, package: 15, loop: 18 },
-  '23': { unload: 10, package: 15, loop: 18 },
-  '00': { unload: 10, package: 15, loop: 18 },
-  '01': { unload: 10, package: 15, loop: 18 },
-  '02': { unload: 10, package: 15, loop: 18 },
-  '03': { unload: 10, package: 15, loop: 18 },
-  '04': { unload: 10, package: 15, loop: 18 },
-  '05': { unload: 10, package: 15, loop: 18 },
-  '06': { unload: 10, package: 15, loop: 18 },
-};
-
 function getDefaultStaffConfig(): StaffConfig {
   return {
     ownWhite: 0,
@@ -303,9 +267,7 @@ function getDefaultStaffConfig(): StaffConfig {
     laborNight: 0,
     dailyWhite: 0,
     dailyNight: 0,
-    assessAmount: 0,
-    whiteTimeSlots: { ...DEFAULT_WHITE_TIMESLOTS },
-    nightTimeSlots: { ...DEFAULT_NIGHT_TIMESLOTS }
+    assessAmount: 0
   };
 }
 
@@ -450,31 +412,115 @@ interface StaffAllocation {
 }
 
 /**
- * 智能人员分配函数 - 使用固定人数配置
- * 直接使用班次配置中设定的各时段各岗位人数
+ * 根据班次总人数自动计算各岗位人数
+ * 基于卸车与集包网格作业记录表格的比例
  * 
- * @param timeSlotConfig - 该时段在班次配置中的固定人数配置
+ * @param totalStaff - 班次总人数（自有+劳务+日结）
+ * @param hour - 时段小时数（0-23）
+ * @returns 各岗位人数
+ */
+function autoCalculateAllocation(totalStaff: number, hour: number): TimeSlotAllocation {
+  // 各班次的基础岗位比例（基于表格数据分析）
+  // 白班（07-12点）：卸车比例较低，环线比例较高（高峰期）
+  // 中班（12-18点）：卸车比例提高，环线比例降低
+  // 夜班（18-07点）：整体卸车、集包、环线比例均匀
+  
+  let unloadRatio: number;
+  let packageRatio: number;
+  let loopRatio: number;
+  
+  // 固定岗位（特快、文件、发验、客服等）
+  const fixedStaff = 4 + 4; // 特快4 + 文件/发验/客服/接车 ≈ 4人
+  
+  // 可分配人数
+  const allocatable = Math.max(1, totalStaff - fixedStaff);
+  
+  if (hour >= 7 && hour < 12) {
+    // 白班上午：业务高峰期，环线需求大
+    // 比例：卸车≈15%, 集包≈30%, 环线≈55%
+    unloadRatio = 0.15;
+    packageRatio = 0.30;
+    loopRatio = 0.55;
+  } else if (hour >= 12 && hour < 18) {
+    // 中班下午：卸车需求增加，环线减少
+    // 比例：卸车≈25%, 集包≈35%, 环线≈40%
+    unloadRatio = 0.25;
+    packageRatio = 0.35;
+    loopRatio = 0.40;
+  } else {
+    // 夜班：均匀分配
+    // 比例：卸车≈18%, 集包≈28%, 环线≈54%
+    unloadRatio = 0.18;
+    packageRatio = 0.28;
+    loopRatio = 0.54;
+  }
+  
+  // 计算各岗位人数
+  let unload = Math.round(allocatable * unloadRatio);
+  let package_ = Math.round(allocatable * packageRatio);
+  let loop = Math.round(allocatable * loopRatio);
+  
+  // 复用逻辑：卸车和集包部分人员可复用去环线
+  // 卸车复用：5-15%去环线
+  // 集包复用：10-20%去环线
+  let reuseFromUnload = 0;
+  let reuseFromPackage = 0;
+  
+  if (hour >= 7 && hour < 12) {
+    // 白班：复用较多（高峰期需要更多环线人手）
+    reuseFromUnload = Math.min(Math.floor(unload * 0.20), 3);
+    reuseFromPackage = Math.min(Math.floor(package_ * 0.25), 4);
+  } else if (hour >= 12 && hour < 18) {
+    // 中班：复用中等
+    reuseFromUnload = Math.min(Math.floor(unload * 0.15), 2);
+    reuseFromPackage = Math.min(Math.floor(package_ * 0.15), 3);
+  } else {
+    // 夜班：复用较少
+    reuseFromUnload = Math.min(Math.floor(unload * 0.10), 2);
+    reuseFromPackage = Math.min(Math.floor(package_ * 0.10), 2);
+  }
+  
+  // 复用后实际人数
+  const actualUnload = Math.max(1, unload - reuseFromUnload);
+  const actualPackage = Math.max(1, package_ - reuseFromPackage);
+  const actualLoop = loop + reuseFromUnload + reuseFromPackage;
+  
+  return {
+    unload: actualUnload,
+    package: actualPackage,
+    loop: actualLoop
+  };
+}
+
+/**
+ * 智能人员分配函数 - 根据总人数自动分配
+ * 根据班次总人数和各岗位比例自动计算每个时段每个环节的人数
+ * 
  * @param ownCount - 自有人员数量
  * @param laborCount - 劳务人员数量
  * @param dailyCount - 日结人员数量
  */
 function smartAllocate(
-  timeSlotConfig: TimeSlotAllocation,
   ownCount: number,
   laborCount: number,
   dailyCount: number
 ): StaffAllocation {
-  // 直接使用配置的固定人数
+  // 总人数
+  const totalStaff = ownCount + laborCount + dailyCount;
+  
+  // 根据时段获取岗位人数
+  const hour = parseInt(currentTimeSlot.split('-')[0]);
+  const timeSlotConfig = autoCalculateAllocation(totalStaff, hour);
+  
+  // 直接使用自动计算的人数
   const unload = timeSlotConfig.unload;
   const package_ = timeSlotConfig.package;
   const loop = timeSlotConfig.loop;
   
   // 固定岗位（根据班次）
-  const hour = parseInt(currentTimeSlot.split('-')[0]);
   let file = 0;
   let inspect = 0;
   let service = 0;
-  const express = 4;
   
   if (hour >= 7 && hour < 12) {
     // 白班
@@ -491,11 +537,9 @@ function smartAllocate(
     inspect = 3;
   }
   
-  // 计算复用人数（卸车人员复用部分到环线）
-  // 这里复用逻辑：卸车人数中复用部分到环线
-  const reuseFromUnload = Math.min(2, Math.floor(unload * 0.2));
-  const actualUnload = Math.max(1, unload - reuseFromUnload);
-  const actualLoop = loop + reuseFromUnload;
+  // 复用人数计算（用于记录）
+  const reuseFromUnload = Math.min(Math.floor(timeSlotConfig.unload * (hour >= 7 && hour < 12 ? 0.20 : 0.10)), 2);
+  const reuseFromPackage = Math.min(Math.floor(timeSlotConfig.package * (hour >= 7 && hour < 12 ? 0.25 : 0.10)), 3);
   
   // ========== 按人员类型细分 ==========
   const totalType = ownCount + laborCount + dailyCount;
@@ -503,25 +547,25 @@ function smartAllocate(
   const laborRatio = totalType > 0 ? laborCount / totalType : 0;
   const dailyRatio = totalType > 0 ? dailyCount / totalType : 0;
   
-  // 卸车环节（复用后的实际卸车人数）
-  const unloadOwn = Math.round(actualUnload * ownRatio);
-  const unloadLabor = Math.round(actualUnload * laborRatio);
-  const unloadDaily = actualUnload - unloadOwn - unloadLabor;
+  // 卸车环节
+  const unloadOwn = Math.round(unload * ownRatio);
+  const unloadLabor = Math.round(unload * laborRatio);
+  const unloadDaily = unload - unloadOwn - unloadLabor;
   
   // 集包环节
   const packageOwn = Math.round(package_ * ownRatio);
   const packageLabor = Math.round(package_ * laborRatio);
   const packageDaily = package_ - packageOwn - packageLabor;
   
-  // 环线环节（复用后的实际环线人数）
-  const loopOwn = Math.round(actualLoop * ownRatio);
-  const loopLabor = Math.round(actualLoop * laborRatio);
-  const loopDaily = actualLoop - loopOwn - loopLabor;
+  // 环线环节
+  const loopOwn = Math.round(loop * ownRatio);
+  const loopLabor = Math.round(loop * laborRatio);
+  const loopDaily = loop - loopOwn - loopLabor;
   
   return {
-    unload: actualUnload,
+    unload,
     package: package_,
-    loop: actualLoop,
+    loop,
     file,
     inspect,
     service,
@@ -580,7 +624,6 @@ export default function SmartPerformanceDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasCloudData, setHasCloudData] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [editingShiftType, setEditingShiftType] = useState<'white' | 'night'>('white');
   const [activeTab, setActiveTab] = useState<'config' | 'daily' | 'charts'>('config');
   
   // 检查云端连接并自动加载数据
@@ -912,27 +955,8 @@ export default function SmartPerformanceDashboard() {
         const currentLabor = isWhitePeriod ? whiteLabor : nightLabor;
         const currentDaily = isWhitePeriod ? whiteDaily : nightDaily;
         
-        // 从班次配置中获取时段人数配置
-        const config = staffConfig[row.date] || getDefaultStaffConfig();
-        const timeSlots = isWhitePeriod ? config.whiteTimeSlots : config.nightTimeSlots;
-        const timeSlotKey = row.timeSlot.split('-')[0]; // 如 "07", "08"
-        
-        // 获取配置的时段人数，如果没有配置则使用默认值
-        let timeSlotConfig: TimeSlotAllocation;
-        if (timeSlots && timeSlots[timeSlotKey]) {
-          timeSlotConfig = timeSlots[timeSlotKey];
-        } else {
-          // 默认配置：根据班次总人数按比例分配
-          const total = currentOwn + currentLabor + currentDaily;
-          timeSlotConfig = {
-            unload: Math.round(total * 0.25),
-            package: Math.round(total * 0.40),
-            loop: Math.round(total * 0.35)
-          };
-        }
-        
+        // 自动分配：根据总人数自动计算各岗位人数
         const allocation = smartAllocate(
-          timeSlotConfig,
           currentOwn,
           currentLabor,
           currentDaily
@@ -1811,229 +1835,6 @@ export default function SmartPerformanceDashboard() {
                                   placeholder="输入考核金额"
                                 />
                                 <span className="text-slate-400 text-sm">元/天</span>
-                              </div>
-                            </div>
-
-                            {/* 时段人数配置 */}
-                            <div className="p-3 bg-slate-800/50 rounded-xl border border-emerald-700/50">
-                              <p className="text-xs text-emerald-400 mb-3 font-medium flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                时段人数分配表
-                              </p>
-                              <p className="text-xs text-slate-400 mb-3">设置每个时段各岗位的固定人数</p>
-                              
-                              {/* 时段类型选择 */}
-                              <div className="flex gap-2 mb-4">
-                                <Button
-                                  size="sm"
-                                  variant={editingShiftType === 'white' ? 'default' : 'outline'}
-                                  className={editingShiftType === 'white' ? 'bg-emerald-600' : 'border-emerald-600 text-emerald-400'}
-                                  onClick={() => setEditingShiftType('white')}
-                                >
-                                  <Sun className="w-4 h-4 mr-1" />白班
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={editingShiftType === 'night' ? 'default' : 'outline'}
-                                  className={editingShiftType === 'night' ? 'bg-slate-600' : 'border-slate-600 text-slate-400'}
-                                  onClick={() => setEditingShiftType('night')}
-                                >
-                                  <Moon className="w-4 h-4 mr-1" />夜班
-                                </Button>
-                              </div>
-                              
-                              {/* 时段配置表格 */}
-                              <div className="max-h-64 overflow-y-auto">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="border-slate-700">
-                                      <TableHead className="text-slate-300 text-xs">时段</TableHead>
-                                      <TableHead className="text-blue-400 text-xs">卸车</TableHead>
-                                      <TableHead className="text-purple-400 text-xs">集包</TableHead>
-                                      <TableHead className="text-amber-400 text-xs">环线</TableHead>
-                                      <TableHead className="text-cyan-400 text-xs">合计</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {editingShiftType === 'white' ? (
-                                      // 白班时段
-                                      Object.entries({
-                                        '07': '07:00-08:00',
-                                        '08': '08:00-09:00',
-                                        '09': '09:00-10:00',
-                                        '10': '10:00-11:00',
-                                        '11': '11:00-12:00',
-                                        '12': '12:00-13:00',
-                                        '13': '13:00-14:00',
-                                        '14': '14:00-15:00',
-                                        '15': '15:00-16:00',
-                                        '16': '16:00-17:00',
-                                        '17': '17:00-18:00'
-                                      }).map(([key, label]) => {
-                                        const slot = config.whiteTimeSlots?.[key] || { unload: 10, package: 15, loop: 18 };
-                                        const total = slot.unload + slot.package + slot.loop;
-                                        return (
-                                          <TableRow key={key} className="border-slate-700/50">
-                                            <TableCell className="text-slate-300 text-xs py-1">{label}</TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.unload}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      whiteTimeSlots: {
-                                                        ...(s[configDate]?.whiteTimeSlots || DEFAULT_WHITE_TIMESLOTS),
-                                                        [key]: { ...slot, unload: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.package}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      whiteTimeSlots: {
-                                                        ...(s[configDate]?.whiteTimeSlots || DEFAULT_WHITE_TIMESLOTS),
-                                                        [key]: { ...slot, package: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.loop}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      whiteTimeSlots: {
-                                                        ...(s[configDate]?.whiteTimeSlots || DEFAULT_WHITE_TIMESLOTS),
-                                                        [key]: { ...slot, loop: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="text-cyan-400 text-xs font-bold py-1">{total}</TableCell>
-                                          </TableRow>
-                                        );
-                                      })
-                                    ) : (
-                                      // 夜班时段
-                                      Object.entries({
-                                        '18': '18:00-19:00',
-                                        '19': '19:00-20:00',
-                                        '20': '20:00-21:00',
-                                        '21': '21:00-22:00',
-                                        '22': '22:00-23:00',
-                                        '23': '23:00-00:00',
-                                        '00': '00:00-01:00',
-                                        '01': '01:00-02:00',
-                                        '02': '02:00-03:00',
-                                        '03': '03:00-04:00',
-                                        '04': '04:00-05:00',
-                                        '05': '05:00-06:00',
-                                        '06': '06:00-07:00'
-                                      }).map(([key, label]) => {
-                                        const slot = config.nightTimeSlots?.[key] || { unload: 10, package: 15, loop: 18 };
-                                        const total = slot.unload + slot.package + slot.loop;
-                                        return (
-                                          <TableRow key={key} className="border-slate-700/50">
-                                            <TableCell className="text-slate-300 text-xs py-1">{label}</TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.unload}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      nightTimeSlots: {
-                                                        ...(s[configDate]?.nightTimeSlots || DEFAULT_NIGHT_TIMESLOTS),
-                                                        [key]: { ...slot, unload: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.package}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      nightTimeSlots: {
-                                                        ...(s[configDate]?.nightTimeSlots || DEFAULT_NIGHT_TIMESLOTS),
-                                                        [key]: { ...slot, package: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="py-1">
-                                              <Input
-                                                type="number"
-                                                value={slot.loop}
-                                                onChange={e => {
-                                                  const val = Math.max(0, Number(e.target.value) || 0);
-                                                  setStaffConfig(s => ({
-                                                    ...s,
-                                                    [configDate]: {
-                                                      ...getDefaultStaffConfig(),
-                                                      ...s[configDate],
-                                                      nightTimeSlots: {
-                                                        ...(s[configDate]?.nightTimeSlots || DEFAULT_NIGHT_TIMESLOTS),
-                                                        [key]: { ...slot, loop: val }
-                                                      }
-                                                    }
-                                                  }));
-                                                }}
-                                                className="w-12 h-7 text-center text-xs bg-slate-700/50 border-slate-600"
-                                              />
-                                            </TableCell>
-                                            <TableCell className="text-cyan-400 text-xs font-bold py-1">{total}</TableCell>
-                                          </TableRow>
-                                        );
-                                      })
-                                    )}
-                                  </TableBody>
-                                </Table>
                               </div>
                             </div>
                           </div>
