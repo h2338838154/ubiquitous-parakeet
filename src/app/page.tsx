@@ -1067,8 +1067,8 @@ export default function SmartPerformanceDashboard() {
         // 工单理赔 = 20000/30/24
         const orderClaim = ORDER_CLAIM;
         
-        // 考核金额（从配置中获取）
-        const assessAmount = dateConfig.assessAmount || 0;
+        // 考核金额 = 输入金额/24（分配到24个时段）
+        const assessAmount = (dateConfig.assessAmount || 0) / 24;
         
         // 总成本 = 所有成本项之和（确保都是有效数字）
         // 注：自有、劳务、日结人员薪资已通过环节薪资函数计算
