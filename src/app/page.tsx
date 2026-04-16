@@ -305,8 +305,14 @@ const TIME_SLOT_STAFF_24H: Record<string, { unload: number; package: number; loo
 };
 
 // 计算24时段中每个时段的班次总人数
+// 解析时段字符串获取小时数（如 "0900-1000" -> 9, "1300-1400" -> 13）
+function parseHour(timeSlot: string): number {
+  const hourStr = timeSlot.split('-')[0];  // "0900" 或 "1300"
+  return parseInt(hourStr.slice(0, 2));     // 取前两位转数字: 9 或 13
+}
+
 function getTimeSlotShiftTotal(timeSlot: string, config: StaffConfig): number {
-  const hour = parseInt(timeSlot.split('-')[0]);
+  const hour = parseHour(timeSlot);
   
   // 班次人数
   const whiteTotal = config.ownWhite + config.laborWhite + config.dailyWhite;
@@ -534,7 +540,7 @@ function smartAllocate(
   config: StaffConfig
 ): StaffAllocation {
   // 根据班次配置和时段模板计算人数分配
-  const hour = parseInt(timeSlot.split('-')[0]);
+  const hour = parseHour(timeSlot);
   const timeSlotConfig = autoCalculateAllocation(timeSlot, config);
   
   // 调试日志
