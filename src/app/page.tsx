@@ -405,170 +405,119 @@ interface StaffAllocation {
 }
 
 /**
- * 智能人员分配算法
+ * 智能人员分配算法（744a7da版本 - 基于业务量比例分配）
  * 
- * 核心原则：每个时段的总人数 = 班次配置的总人数（自有 + 劳务 + 日结）
- * 
- * 参考 Excel 数据（卸车与集包网格作业记录_46113.xlsx）：
- * - 白班（07:00-12:00）：约 67-74 人/时段
- *   卸车 8-15人，集包 21人，北环 14-19人，南环 14-16人，特快 4人，文件 0人
- * - 中班（12:00-18:00）：约 74 人/时段
- *   卸车 13-20人，集包 4-27人，北环 13-29人，南环 13人，特快 4人，文件 2人
- * - 夜班（18:00-07:00）：约 95-101 人/时段
- *   卸车 17-21人，集包 15-30人，北环 26-39人，南环 18-22人，特快 3人，文件 4人
- * 
- * 分配策略：
- * 1. 总人数 = 自有 + 劳务 + 日结（直接使用）
- * 2. 先计算固定岗位（文件、发验、客服、接发员）
- * 3. 剩余人数按班次比例分配到卸车、集包、北环、南环
- * 4. 特快按班次固定人数
+ * 核心原则：
+ * 1. 根据业务量（卸车量、集包量、环线量）计算各环节比例
+ * 2. 按比例将总人数分配到卸车、集包、环线
+ * 3. 再按自有/劳务/日结比例细分各环节人数
  */
 function smartAllocate(
+  totalStaff: number,
+  unloadCount: number,
+  packageCount: number,
+  loopCount: number,
   ownCount: number,
   laborCount: number,
-  dailyCount: number,
-  _unloadCount: number,
-  _packageCount: number,
-  _loopCount: number,
-  isWhite: boolean,
-  isMiddle: boolean = false
+  dailyCount: number
 ): StaffAllocation {
+  // ========== 1. 计算业务量比例 ==========
+  const totalVolume = unloadCount + packageCount + loopCount;
+  
+  // 默认比例（当业务量为0时使用）
+  let defaultUnloadRatio = 0.3;
+  let defaultPackageRatio = 0.35;
+  let defaultLoopRatio = 0.35;
+  
+  // 根据业务量计算比例
+  let unloadRatio: number;
+  let packageRatio: number;
+  let loopRatio: number;
+  
+  if (totalVolume > 0) {
+    // 业务量比例（带平滑处理）
+    const rawUnloadRatio = unloadCount / totalVolume;
+    const rawPackageRatio = packageCount / totalVolume;
+    const rawLoopRatio = loopCount / totalVolume;
+    
+    // 与默认值混合（70% 业务量，30% 默认值）
+    unloadRatio = rawUnloadRatio * 0.7 + defaultUnloadRatio * 0.3;
+    packageRatio = rawPackageRatio * 0.7 + defaultPackageRatio * 0.3;
+    loopRatio = rawLoopRatio * 0.7 + defaultLoopRatio * 0.3;
+  } else {
+    // 使用默认比例
+    unloadRatio = defaultUnloadRatio;
+    packageRatio = defaultPackageRatio;
+    loopRatio = defaultLoopRatio;
+  }
+  
+  // 归一化
+  const ratioSum = unloadRatio + packageRatio + loopRatio;
+  unloadRatio = unloadRatio / ratioSum;
+  packageRatio = packageRatio / ratioSum;
+  loopRatio = loopRatio / ratioSum;
+  
+  // ========== 2. 分配各环节人数 ==========
+  // 先预留固定岗位（白班：发验2，客服2，特快4；中班/夜班类似）
   const hour = parseInt(currentTimeSlot.split('-')[0]);
+  let fixedStaff = 0;
+  let file = 0;
+  let inspect = 0;
+  let service = 0;
+  let express = 4;
   
-  // ========== 1. 计算总人数 ==========
-  const totalStaff = ownCount + laborCount + dailyCount;
-  
-  // ========== 2. 确定固定岗位人数 ==========
-  let documentCount: number;
-  let inspectCount: number;
-  let serviceCount: number;
-  let expressCount: number;
-  
-  if (isWhite) {
+  if (hour >= 7 && hour < 12) {
     // 白班
-    documentCount = 0;
-    inspectCount = 2;
-    serviceCount = 2;
-    expressCount = 4;
-  } else if (isMiddle) {
+    inspect = 2;
+    service = 2;
+    fixedStaff = inspect + service + express;
+  } else if (hour >= 12 && hour < 18) {
     // 中班
-    documentCount = 2;
-    inspectCount = 2;
-    serviceCount = 1;
-    expressCount = 4;
+    file = 2;
+    inspect = 2;
+    service = 1;
+    fixedStaff = file + inspect + service + express;
   } else {
     // 夜班
-    documentCount = 4;
-    inspectCount = 3;
-    serviceCount = 0;
-    expressCount = 3;
+    file = 4;
+    inspect = 3;
+    fixedStaff = file + inspect + express;
   }
   
-  // ========== 3. 可分配给主要环节的人数 ==========
-  const fixedStaff = documentCount + inspectCount + serviceCount + expressCount;
-  const mainStaffCount = Math.max(1, totalStaff - fixedStaff);
+  // 可分配人员
+  const allocatable = Math.max(1, totalStaff - fixedStaff);
   
-  // ========== 4. 确定各环节比例（基于 Excel 参考数据）==========
-  let baseUnloadRatio: number;
-  let basePackageRatio: number;
-  let baseNorthLoopRatio: number;
-  let baseSouthLoopRatio: number;
+  // 按比例分配
+  let unload = Math.round(allocatable * unloadRatio);
+  let package_ = Math.round(allocatable * packageRatio);
+  let loop = Math.round(allocatable * loopRatio);
   
-  if (isWhite) {
-    // 白班比例
-    if (hour >= 7 && hour < 9) {
-      baseUnloadRatio = 0.12;
-      basePackageRatio = 0.31;
-      baseNorthLoopRatio = 0.25;
-      baseSouthLoopRatio = 0.24;
-    } else if (hour >= 9 && hour < 11) {
-      baseUnloadRatio = 0.19;
-      basePackageRatio = 0.31;
-      baseNorthLoopRatio = 0.21;
-      baseSouthLoopRatio = 0.21;
-    } else {
-      baseUnloadRatio = 0.22;
-      basePackageRatio = 0.31;
-      baseNorthLoopRatio = 0.28;
-      baseSouthLoopRatio = 0.24;
-    }
-  } else if (isMiddle) {
-    // 中班比例
-    if (hour >= 12 && hour < 14) {
-      baseUnloadRatio = 0.27;
-      basePackageRatio = 0.05;
-      baseNorthLoopRatio = 0.39;
-      baseSouthLoopRatio = 0.18;
-    } else if (hour >= 14 && hour < 16) {
-      baseUnloadRatio = 0.18;
-      basePackageRatio = 0.36;
-      baseNorthLoopRatio = 0.22;
-      baseSouthLoopRatio = 0.18;
-    } else {
-      baseUnloadRatio = 0.23;
-      basePackageRatio = 0.31;
-      baseNorthLoopRatio = 0.22;
-      baseSouthLoopRatio = 0.18;
-    }
-  } else {
-    // 夜班比例
-    if (hour >= 18 && hour < 20) {
-      baseUnloadRatio = 0.20;
-      basePackageRatio = 0.28;
-      baseNorthLoopRatio = 0.30;
-      baseSouthLoopRatio = 0.19;
-    } else if (hour >= 20 && hour < 23) {
-      baseUnloadRatio = 0.19;
-      basePackageRatio = 0.30;
-      baseNorthLoopRatio = 0.26;
-      baseSouthLoopRatio = 0.18;
-    } else {
-      baseUnloadRatio = 0.22;
-      basePackageRatio = 0.25;
-      baseNorthLoopRatio = 0.28;
-      baseSouthLoopRatio = 0.20;
-    }
-  }
-  
-  // ========== 5. 计算各环节人数 ==========
-  const mainRatios = baseUnloadRatio + basePackageRatio + baseNorthLoopRatio + baseSouthLoopRatio;
-  let unload = Math.round(mainStaffCount * (baseUnloadRatio / mainRatios));
-  let package_ = Math.round(mainStaffCount * (basePackageRatio / mainRatios));
-  let northLoop = Math.round(mainStaffCount * (baseNorthLoopRatio / mainRatios));
-  let southLoop = Math.round(mainStaffCount * (baseSouthLoopRatio / mainRatios));
-  
-  // ========== 6. 人员复用逻辑 ==========
+  // ========== 3. 复用逻辑 ==========
   // 卸车人员在完成卸车任务后可协助环线装车
   let reuseFromUnload = 0;
-  if (isWhite) {
-    if (hour >= 7 && hour < 10) {
-      reuseFromUnload = Math.min(Math.floor(unload * 0.15), 5);
-    } else if (hour >= 10 && hour < 12) {
-      reuseFromUnload = Math.min(Math.floor(unload * 0.20), 7);
-    }
-  } else if (!isMiddle) {
+  if (hour >= 7 && hour < 12) {
+    // 白班复用较少
+    reuseFromUnload = Math.min(Math.floor(unload * 0.15), 5);
+  } else if (hour >= 12 && hour < 18) {
+    // 中班复用中等
+    reuseFromUnload = Math.min(Math.floor(unload * 0.20), 8);
+  } else {
     // 夜班复用较多
-    if (hour >= 18 && hour < 22) {
-      reuseFromUnload = Math.min(Math.floor(unload * 0.30), 13);
-    } else {
-      reuseFromUnload = Math.min(Math.floor(unload * 0.20), 8);
-    }
+    reuseFromUnload = Math.min(Math.floor(unload * 0.25), 10);
   }
   
-  // 复用调整：从卸车转至南环（南环装车需要更多人手）
+  // 复用调整
   unload = Math.max(1, unload - reuseFromUnload);
-  southLoop = southLoop + reuseFromUnload;
+  loop = loop + reuseFromUnload;
   
-  // ========== 7. 总人数平衡（确保 = 配置总人数）==========
-  const fixedTotal = documentCount + inspectCount + serviceCount + expressCount;
-  const currentMain = unload + package_ + northLoop + southLoop;
-  const diff = mainStaffCount - currentMain;
+  // ========== 4. 人数平衡 ==========
+  const current = unload + package_ + loop;
+  const diff = allocatable - current;
   if (diff !== 0) {
-    // 剩余人数优先分配给集包
     package_ = Math.max(1, package_ + diff);
   }
   
-  // ========== 8. 按人员类型分配（自有/劳务/日结）==========
+  // ========== 5. 按人员类型细分 ==========
   const totalType = ownCount + laborCount + dailyCount;
   const ownRatio = totalType > 0 ? ownCount / totalType : 0;
   const laborRatio = totalType > 0 ? laborCount / totalType : 0;
@@ -584,26 +533,18 @@ function smartAllocate(
   const packageLabor = Math.round(package_ * laborRatio);
   const packageDaily = package_ - packageOwn - packageLabor;
   
-  // 北环环节
-  const northLoopOwn = Math.round(northLoop * ownRatio);
-  const northLoopLabor = Math.round(northLoop * laborRatio);
-  const northLoopDaily = northLoop - northLoopOwn - northLoopLabor;
-  
-  // 南环环节
-  const southLoopOwn = Math.round(southLoop * ownRatio);
-  const southLoopLabor = Math.round(southLoop * laborRatio);
-  const southLoopDaily = southLoop - southLoopOwn - southLoopLabor;
-  
-  // 总人数验证
-  const totalAllocated = unload + package_ + northLoop + southLoop + fixedTotal;
+  // 环线环节
+  const loopOwn = Math.round(loop * ownRatio);
+  const loopLabor = Math.round(loop * laborRatio);
+  const loopDaily = loop - loopOwn - loopLabor;
   
   return {
     unload,
     package: package_,
-    loop: northLoop + southLoop, // 环线 = 北环 + 南环
-    file: documentCount,
-    inspect: inspectCount,
-    service: serviceCount,
+    loop,
+    file,
+    inspect,
+    service,
     receive: 1,
     unloadOwn: Math.max(0, unloadOwn),
     unloadLabor: Math.max(0, unloadLabor),
@@ -611,9 +552,9 @@ function smartAllocate(
     packageOwn: Math.max(0, packageOwn),
     packageLabor: Math.max(0, packageLabor),
     packageDaily: Math.max(0, packageDaily),
-    loopOwn: Math.max(0, northLoopOwn + southLoopOwn),
-    loopLabor: Math.max(0, northLoopLabor + southLoopLabor),
-    loopDaily: Math.max(0, northLoopDaily + southLoopDaily),
+    loopOwn: Math.max(0, loopOwn),
+    loopLabor: Math.max(0, loopLabor),
+    loopDaily: Math.max(0, loopDaily),
     reuseFromUnload
   };
 }
@@ -990,15 +931,17 @@ export default function SmartPerformanceDashboard() {
         const currentLabor = isWhitePeriod ? whiteLabor : nightLabor;
         const currentDaily = isWhitePeriod ? whiteDaily : nightDaily;
         
+        // 总人数
+        const totalStaff = currentOwn + currentLabor + currentDaily;
+        
         const allocation = smartAllocate(
-          currentOwn,
-          currentLabor,
-          currentDaily,
+          totalStaff,
           row.unloadCount,
           row.packageCount,
           row.loopCount,
-          isWhitePeriod,
-          isMiddlePeriod
+          currentOwn,
+          currentLabor,
+          currentDaily
         );
         
         // ============ 计算各项成本 ============
