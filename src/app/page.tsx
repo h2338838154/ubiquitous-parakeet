@@ -885,11 +885,24 @@ export default function SmartPerformanceDashboard() {
     setUploadedData(EXAMPLE_DATA);
     setSelectedDate('all');
     
-    // 为每个日期创建默认班次配置
-    const dates = [...new Set(EXAMPLE_DATA.map(d => d.date))];
+    // 根据示例数据中的业务量设置对应的班次人员配置
+    // 白班时段(07-18)业务量较小，日班配置较低
+    // 夜班时段(18-07)业务量大，夜班配置较高
     const defaultConfig: DailyStaffConfig = {};
+    const dates = [...new Set(EXAMPLE_DATA.map(d => d.date))];
     dates.forEach(date => {
-      defaultConfig[date] = getDefaultStaffConfig();
+      defaultConfig[date] = {
+        // 白班：自有40人 + 劳务13人 + 日结5人 = 58人/班次
+        ownWhite: 40,
+        ownMiddle: 0,
+        // 夜班：自有50人 + 劳务18人 + 日结5人 = 73人/班次
+        ownNight: 50,
+        laborWhite: 13,
+        laborNight: 18,
+        dailyWhite: 5,
+        dailyNight: 5,
+        assessAmount: 0
+      };
     });
     setStaffConfig(defaultConfig);
     
