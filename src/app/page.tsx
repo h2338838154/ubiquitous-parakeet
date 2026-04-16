@@ -425,50 +425,52 @@ function autoCalculateAllocation(totalStaff: number, hour: number): TimeSlotAllo
     return { unload: 1, package: 1, loop: 1 };
   }
   
-  // 根据表格数据分析的各时段岗位比例
-  // 白班上午(07-12)：卸车≈15%, 集包≈30%, 环线≈55%
-  // 中班/下午(12-18)：卸车≈25%, 集包≈35%, 环线≈40%
-  // 夜班(18-07)：卸车≈18%, 集包≈28%, 环线≈54%
+  // 根据时段确定固定分配模板
+  // 白班上午(07-12)：卸车12、集包21、环线20 = 53
+  // 中班/下午(12-18)：卸车12、集包21、环线20 = 53
+  // 夜班(18-07)：卸车15、集包25、环线40 = 80
   
-  let unloadRatio: number;
-  let packageRatio: number;
-  let loopRatio: number;
+  let baseUnload: number;
+  let basePackage: number;
+  let baseLoop: number;
   
-  if (hour >= 7 && hour < 12) {
-    // 白班上午：环线比例最高（业务高峰期）
-    unloadRatio = 0.15;
-    packageRatio = 0.30;
-    loopRatio = 0.55;
-  } else if (hour >= 12 && hour < 18) {
-    // 中班/下午：卸车比例提高
-    unloadRatio = 0.25;
-    packageRatio = 0.35;
-    loopRatio = 0.40;
+  if (hour >= 7 && hour < 18) {
+    // 白班：固定53人分配比例
+    baseUnload = 12;
+    basePackage = 21;
+    baseLoop = 20;
   } else {
-    // 夜班：环线比例较高
-    unloadRatio = 0.18;
-    packageRatio = 0.28;
-    loopRatio = 0.54;
+    // 夜班：固定80人分配比例
+    baseUnload = 15;
+    basePackage = 25;
+    baseLoop = 40;
   }
   
-  // 直接按比例分配：卸车 + 集包 + 环线 = 总人数
-  let unload = Math.round(totalStaff * unloadRatio);
-  let package_ = Math.round(totalStaff * packageRatio);
-  let loop = Math.round(totalStaff * loopRatio);
+  const baseTotal = baseUnload + basePackage + baseLoop;
+  
+  // 按比例放大/缩小以匹配实际总人数
+  const scale = totalStaff / baseTotal;
+  let unload = Math.round(baseUnload * scale);
+  let package_ = Math.round(basePackage * scale);
+  let loop = Math.round(baseLoop * scale);
   
   // 平衡调整：确保总人数等于 totalStaff
   const sum = unload + package_ + loop;
   if (sum !== totalStaff) {
-    // 差异调整到环线（最大比例岗位）
+    // 差异调整到环线（最大岗位）
     loop += (totalStaff - sum);
   }
   
+  // 确保最小值为1
+  unload = Math.max(1, unload);
+  package_ = Math.max(1, package_);
+  loop = Math.max(1, loop);
+  
   // 复用逻辑：卸车和集包部分人员复用去环线
-  // 复用后，卸车和集包实际人数减少，环线人数增加
   let reuseFromUnload = 0;
   let reuseFromPackage = 0;
   
-  if (hour >= 7 && hour < 12) {
+  if (hour >= 7 && hour < 18) {
     // 白班：复用较多
     reuseFromUnload = Math.min(Math.floor(unload * 0.20), 3);
     reuseFromPackage = Math.min(Math.floor(package_ * 0.25), 4);
@@ -886,17 +888,17 @@ export default function SmartPerformanceDashboard() {
     setSelectedDate('all');
     
     // 根据示例数据中的业务量设置对应的班次人员配置
-    // 白班时段(07-18)业务量较小，日班配置较低
-    // 夜班时段(18-07)业务量大，夜班配置较高
+    // 白班各时段人数 = 53人（固定）
+    // 夜班各时段人数 = 80人（固定）
     const defaultConfig: DailyStaffConfig = {};
     const dates = [...new Set(EXAMPLE_DATA.map(d => d.date))];
     dates.forEach(date => {
       defaultConfig[date] = {
-        // 白班：自有40人 + 劳务13人 + 日结5人 = 58人/班次
-        ownWhite: 40,
+        // 白班：自有35 + 劳务13 + 日结5 = 53人
+        ownWhite: 35,
         ownMiddle: 0,
-        // 夜班：自有50人 + 劳务18人 + 日结5人 = 73人/班次
-        ownNight: 50,
+        // 夜班：自有57 + 劳务18 + 日结5 = 80人
+        ownNight: 57,
         laborWhite: 13,
         laborNight: 18,
         dailyWhite: 5,
