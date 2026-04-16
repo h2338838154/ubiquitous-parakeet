@@ -132,9 +132,9 @@ const PACKAGE_UNIT_PRICE = 0.0686;   // 集包收入 = 集包量 × 0.0686
 const LOOP_UNIT_PRICE = 0.2765;     // 环线收入 = 环线量 × 0.2765
 
 // ============ 固定成本常量 ============
-// 管理成本（每时段固定）
-const MANAGE_SALARY = (110000 + 16600 + 24900) / 30 / 24; // ≈ 209.03元/时段
-const SOCIAL_SECURITY = (14 * 1130) / 30 / 24; // ≈ 21.99元/时段
+// 管理成本 = (110000+16600+24900)/30/24 ≈ 210.42元/时段（固定，不按人数）
+const MANAGE_SALARY = (110000 + 16600 + 24900) / 30 / 24; // ≈ 210.42元/时段
+const SOCIAL_SECURITY = (14 * 1130) / 30 / 24; // ≈ 21.99元/时段/人
 const SERVICE_COST_PER_PERSON = (4200 / 30 * 2) / 9; // ≈ 31.11元/人/时段
 const COMMERCIAL_INSURANCE_RATE = 4.5 / 24; // ≈ 0.1875元/人/时段
 const ORDER_CLAIM = 20000 / 30 / 24; // ≈ 27.78元/时段
@@ -362,9 +362,9 @@ const EXAMPLE_DATA: UploadedData[] = [
 
 // ============ 计算公式 ============
 
-// 管理人员工资 = (110000+16600+24900)/30/24
+// 管理人员工资 = (110000+16600+24900)/30/24 ≈ 210.42元/时段（固定分摊，不按人数）
 function calcManageSalary(manageCount: number): number {
-  return MANAGE_SALARY * manageCount;
+  return MANAGE_SALARY; // 管理成本是固定值，不按人数计算
 }
 
 // 社保 = (14*1130)/30/24 * 人数
