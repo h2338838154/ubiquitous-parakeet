@@ -271,39 +271,80 @@ function getDefaultStaffConfig(): StaffConfig {
   };
 }
 
-// ============ 固定时段人数模板（根据实际表格数据） ============
-// 各时段人数安排参考：卸车、集包、环线（北环+南环）
-// 模板格式：{ unload: 卸车人数, package: 集包人数, loop: 环线人数(北环+南环) }
-const TIME_SLOT_STAFF_TEMPLATE: Record<string, { unload: number; package: number; loop: number }> = {
-  // 夜班（00:00-07:00）：合计91人
-  '0000-0100': { unload: 17, package: 25, loop: 45 },  // 北环26 + 南环19 = 45
-  '0100-0200': { unload: 17, package: 25, loop: 45 },
-  '0200-0300': { unload: 17, package: 25, loop: 45 },
-  '0300-0400': { unload: 17, package: 18, loop: 52 },  // 集包18，北环30，南环22 = 52
-  '0400-0500': { unload: 17, package: 25, loop: 45 },
-  '0500-0600': { unload: 17, package: 25, loop: 45 },
-  '0600-0700': { unload: 17, package: 25, loop: 45 },
-  // 白班上午（07:00-12:00）：合计67-74人
-  '0700-0800': { unload: 8, package: 21, loop: 33 },  // 北环17 + 南环16 = 33
-  '0800-0900': { unload: 8, package: 21, loop: 33 },
-  '0900-1000': { unload: 13, package: 21, loop: 28 },  // 北环14 + 南环14 = 28
-  '1000-1100': { unload: 13, package: 21, loop: 28 },
-  '1100-1200': { unload: 15, package: 21, loop: 33 }, // 北环19 + 南环14 = 33
-  // 白班下午/中班（12:00-18:00）：合计74人
-  '1200-1300': { unload: 20, package: 4, loop: 45 },   // 北环29 + 南环16 = 45
-  '1300-1400': { unload: 13, package: 27, loop: 29 }, // 北环16 + 南环13 = 29
-  '1400-1500': { unload: 13, package: 27, loop: 29 },
-  '1500-1600': { unload: 17, package: 23, loop: 29 }, // 北环16 + 南环13 = 29
-  '1600-1700': { unload: 17, package: 23, loop: 29 },
-  '1700-1800': { unload: 17, package: 23, loop: 29 },
-  // 夜班（18:00-24:00）：合计95-101人
-  '1800-1900': { unload: 21, package: 15, loop: 57 },  // 北环39 + 南环18 = 57
-  '1900-2000': { unload: 19, package: 30, loop: 44 }, // 北环26 + 南环18 = 44
-  '2000-2100': { unload: 19, package: 30, loop: 44 },
-  '2100-2200': { unload: 19, package: 30, loop: 44 },
-  '2200-2300': { unload: 19, package: 30, loop: 44 },
-  '2300-0000': { unload: 17, package: 25, loop: 45 },
-};
+// ============ 固定时段人数模板（根据班次配置计算时段总人数） ============
+// 各时段人数 = 该时段所有上班班次的总人数
+// 白班(07-18)：自有 + 劳务 + 日结
+// 中班(12-00)：自有（仅12:00-18:00与白班重叠计入白班，18:00-00:00与夜班重叠计入夜班）
+// 夜班(18-07)：自有 + 劳务 + 日结
+
+// 模板格式：{ timeSlot: 时段, total: 该时段总人数 }
+const TIME_SLOT_TOTAL_TEMPLATE = [
+  // 00:00-07:00：仅夜班
+  { timeSlot: '0000-0100', nightOnly: true },
+  { timeSlot: '0100-0200', nightOnly: true },
+  { timeSlot: '0200-0300', nightOnly: true },
+  { timeSlot: '0300-0400', nightOnly: true },
+  { timeSlot: '0400-0500', nightOnly: true },
+  { timeSlot: '0500-0600', nightOnly: true },
+  { timeSlot: '0600-0700', nightOnly: true },
+  // 07:00-12:00：仅白班
+  { timeSlot: '0700-0800', whiteOnly: true },
+  { timeSlot: '0800-0900', whiteOnly: true },
+  { timeSlot: '0900-1000', whiteOnly: true },
+  { timeSlot: '1000-1100', whiteOnly: true },
+  { timeSlot: '1100-1200', whiteOnly: true },
+  // 12:00-18:00：白班 + 中班
+  { timeSlot: '1200-1300', whiteWithMiddle: true },
+  { timeSlot: '1300-1400', whiteWithMiddle: true },
+  { timeSlot: '1400-1500', whiteWithMiddle: true },
+  { timeSlot: '1500-1600', whiteWithMiddle: true },
+  { timeSlot: '1600-1700', whiteWithMiddle: true },
+  { timeSlot: '1700-1800', whiteWithMiddle: true },
+  // 18:00-24:00：夜班 + 中班
+  { timeSlot: '1800-1900', nightWithMiddle: true },
+  { timeSlot: '1900-2000', nightWithMiddle: true },
+  { timeSlot: '2000-2100', nightWithMiddle: true },
+  { timeSlot: '2100-2200', nightWithMiddle: true },
+  { timeSlot: '2200-2300', nightWithMiddle: true },
+  { timeSlot: '2300-0000', nightWithMiddle: true },
+];
+
+// 计算某时段的总人数
+function calcTimeSlotTotal(
+  timeSlot: string,
+  config: StaffConfig
+): { unload: number; package: number; loop: number } {
+  const hour = parseInt(timeSlot.split('-')[0]);
+  
+  // 班次人数计算
+  const whiteTotal = config.ownWhite + config.laborWhite + config.dailyWhite;
+  const middleTotal = config.ownMiddle; // 中班仅自有
+  const nightTotal = config.ownNight + config.laborNight + config.dailyNight;
+  
+  let totalStaff = 0;
+  
+  if (hour >= 0 && hour < 7) {
+    // 00:00-07:00：仅夜班
+    totalStaff = nightTotal;
+  } else if (hour >= 7 && hour < 12) {
+    // 07:00-12:00：仅白班
+    totalStaff = whiteTotal;
+  } else if (hour >= 12 && hour < 18) {
+    // 12:00-18:00：白班 + 中班
+    totalStaff = whiteTotal + middleTotal;
+  } else {
+    // 18:00-24:00：夜班 + 中班
+    totalStaff = nightTotal + middleTotal;
+  }
+  
+  // 默认按 卸车30%:集包35%:环线35% 分配（可根据实际业务调整）
+  // 用户说"53人各时段"意思是所有白班时段都是53人
+  return {
+    unload: Math.round(totalStaff * 0.30),
+    package: Math.round(totalStaff * 0.35),
+    loop: totalStaff - Math.round(totalStaff * 0.30) - Math.round(totalStaff * 0.35)
+  };
+}
 
 // ============ 示例数据（默认展示） ============
 const EXAMPLE_DATA: UploadedData[] = [
@@ -453,118 +494,87 @@ interface StaffAllocation {
  * @param hour - 时段小时数（0-23）
  * @returns 各岗位人数（卸车+集包+环线 = totalStaff）
  */
-function autoCalculateAllocation(totalStaff: number, hour: number, timeSlot: string): TimeSlotAllocation {
-  // 安全检查
-  if (totalStaff <= 0) {
-    return { unload: 1, package: 1, loop: 1 };
-  }
-  
-  // 直接使用固定模板的人数安排
-  const template = TIME_SLOT_STAFF_TEMPLATE[timeSlot];
-  
-  if (template) {
-    // 找到对应时段，使用模板数据
-    const baseUnload = template.unload;
-    const basePackage = template.package;
-    const baseLoop = template.loop;
-    const baseTotal = baseUnload + basePackage + baseLoop;
-    
-    // 按比例缩放以匹配总人数
-    const scale = totalStaff / baseTotal;
-    let unload = Math.round(baseUnload * scale);
-    let package_ = Math.round(basePackage * scale);
-    let loop = Math.round(baseLoop * scale);
-    
-    // 平衡调整：确保总人数等于 totalStaff
-    const sum = unload + package_ + loop;
-    if (sum !== totalStaff) {
-      loop += (totalStaff - sum);
-    }
-    
-    return {
-      unload: Math.max(1, unload),
-      package: Math.max(1, package_),
-      loop: Math.max(1, loop)
-    };
-  }
-  
-  // 如果没有匹配模板，使用默认比例
-  // 白班上午(07-12)：卸车≈15%, 集包≈30%, 环线≈55%
-  // 中班/下午(12-18)：卸车≈25%, 集包≈35%, 环线≈40%
-  // 夜班(18-07)：卸车≈18%, 集包≈28%, 环线≈54%
-  
-  let unloadRatio: number;
-  let packageRatio: number;
-  let loopRatio: number;
-  
-  if (hour >= 7 && hour < 12) {
-    unloadRatio = 0.15;
-    packageRatio = 0.30;
-    loopRatio = 0.55;
-  } else if (hour >= 12 && hour < 18) {
-    unloadRatio = 0.25;
-    packageRatio = 0.35;
-    loopRatio = 0.40;
-  } else {
-    unloadRatio = 0.18;
-    packageRatio = 0.28;
-    loopRatio = 0.54;
-  }
-  
-  let unload = Math.round(totalStaff * unloadRatio);
-  let package_ = Math.round(totalStaff * packageRatio);
-  let loop = Math.round(totalStaff * loopRatio);
-  
-  const sum = unload + package_ + loop;
-  if (sum !== totalStaff) {
-    loop += (totalStaff - sum);
-  }
+function autoCalculateAllocation(
+  timeSlot: string, 
+  config: StaffConfig
+): TimeSlotAllocation {
+  // 直接计算该时段的总人数（根据班次配置）
+  const result = calcTimeSlotTotal(timeSlot, config);
   
   return {
-    unload: Math.max(1, unload),
-    package: Math.max(1, package_),
-    loop: Math.max(1, loop)
+    unload: result.unload,
+    package: result.package,
+    loop: result.loop
   };
 }
 
 /**
- * 智能人员分配函数 - 根据总人数自动分配
- * 根据班次总人数和各岗位比例自动计算每个时段每个环节的人数
+ * 智能人员分配函数 - 根据班次配置自动分配每个时段的人数
  * 
  * @param timeSlot - 时段（如 "0700-0800"）
- * @param ownCount - 自有人员数量
- * @param laborCount - 劳务人员数量
- * @param dailyCount - 日结人员数量
+ * @param config - 班次配置
  */
 function smartAllocate(
   timeSlot: string,
-  ownCount: number,
-  laborCount: number,
-  dailyCount: number
+  config: StaffConfig
 ): StaffAllocation {
-  // 总人数
-  const totalStaff = ownCount + laborCount + dailyCount;
-  
-  // 根据时段获取岗位人数
+  // 直接使用班次配置计算该时段的人数分配
   const hour = parseInt(timeSlot.split('-')[0]);
-  const timeSlotConfig = autoCalculateAllocation(totalStaff, hour, timeSlot);
   
-  // 直接使用自动计算的人数（卸车+集包+环线 = 总人数）
-  const unload = timeSlotConfig.unload;
-  const package_ = timeSlotConfig.package;
-  const loop = timeSlotConfig.loop;
+  // 班次人数计算
+  const whiteTotal = config.ownWhite + config.laborWhite + config.dailyWhite;
+  const middleTotal = config.ownMiddle;
+  const nightTotal = config.ownNight + config.laborNight + config.dailyNight;
   
-  // 固定岗位设为0（所有人员都分配到卸车、集包、环线）
+  let totalStaff = 0;
+  let isWhite = false;
+  let isNight = false;
+  
+  if (hour >= 0 && hour < 7) {
+    // 00:00-07:00：仅夜班
+    totalStaff = nightTotal;
+    isNight = true;
+  } else if (hour >= 7 && hour < 12) {
+    // 07:00-12:00：仅白班
+    totalStaff = whiteTotal;
+    isWhite = true;
+  } else if (hour >= 12 && hour < 18) {
+    // 12:00-18:00：白班 + 中班
+    totalStaff = whiteTotal + middleTotal;
+    isWhite = true;
+  } else {
+    // 18:00-24:00：夜班 + 中班
+    totalStaff = nightTotal + middleTotal;
+    isNight = true;
+  }
+  
+  // 按比例分配卸车、集包、环线
+  // 默认 卸车30%:集包35%:环线35%
+  let unload = Math.round(totalStaff * 0.30);
+  let package_ = Math.round(totalStaff * 0.35);
+  let loop = totalStaff - unload - package_;
+  
+  // 固定岗位设为0
   const file = 0;
   const inspect = 0;
   const service = 0;
   
-  // 复用人数计算（用于记录）
-  const reuseFromUnload = Math.min(Math.floor(timeSlotConfig.unload * (hour >= 7 && hour < 12 ? 0.20 : 0.10)), 2);
-  const reuseFromPackage = Math.min(Math.floor(timeSlotConfig.package * (hour >= 7 && hour < 12 ? 0.25 : 0.10)), 3);
-  
   // ========== 按人员类型细分 ==========
-  const totalType = ownCount + laborCount + dailyCount;
+  const totalType = config.ownWhite + config.ownNight + config.laborWhite + config.laborNight + config.dailyWhite + config.dailyNight;
+  
+  // 根据时段确定各类型人数比例
+  let ownCount = 0, laborCount = 0, dailyCount = 0;
+  
+  if (isWhite) {
+    ownCount = config.ownWhite;
+    laborCount = config.laborWhite;
+    dailyCount = config.dailyWhite;
+  } else if (isNight) {
+    ownCount = config.ownNight;
+    laborCount = config.laborNight;
+    dailyCount = config.dailyNight;
+  }
+  
   const ownRatio = totalType > 0 ? ownCount / totalType : 0;
   const laborRatio = totalType > 0 ? laborCount / totalType : 0;
   const dailyRatio = totalType > 0 ? dailyCount / totalType : 0;
@@ -601,7 +611,7 @@ function smartAllocate(
     loopOwn: Math.max(0, loopOwn),
     loopLabor: Math.max(0, loopLabor),
     loopDaily: Math.max(0, loopDaily),
-    reuseFromUnload
+    reuseFromUnload: 0  // 不再计算复用人数
   };
 }
 
@@ -990,13 +1000,9 @@ export default function SmartPerformanceDashboard() {
         const currentLabor = isWhitePeriod ? whiteLabor : nightLabor;
         const currentDaily = isWhitePeriod ? whiteDaily : nightDaily;
         
-        // 自动分配：根据总人数自动计算各岗位人数
-        const allocation = smartAllocate(
-          row.timeSlot,
-          currentOwn,
-          currentLabor,
-          currentDaily
-        );
+        // 自动分配：根据班次配置计算各岗位人数
+        // 传入完整的dateConfig，让smartAllocate根据时段自动计算
+        const allocation = smartAllocate(row.timeSlot, dateConfig);
         
         // ============ 计算各项成本 ============
         
