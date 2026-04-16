@@ -779,23 +779,11 @@ export default function SmartPerformanceDashboard() {
       }
       
       if (data && data.length > 0) {
-        // 适配中文列名，日期可能是数字(Excel序列号)或字符串
+        // 适配中文列名
         const parsed: UploadedData[] = data.map((row: LogisticsDataRow) => {
           const rawDate = row['日期'];
-          let dateStr: string;
-          if (typeof rawDate === 'number') {
-            dateStr = excelSerialToDate(rawDate);
-          } else if (typeof rawDate === 'string') {
-            // 可能是纯数字字符串
-            const num = parseInt(rawDate, 10);
-            if (!isNaN(num) && rawDate.match(/^\d+$/)) {
-              dateStr = excelSerialToDate(num);
-            } else {
-              dateStr = rawDate;
-            }
-          } else {
-            dateStr = String(rawDate);
-          }
+          // 日期直接使用（已经是字符串格式 YYYY-MM-DD）
+          const dateStr = typeof rawDate === 'string' ? rawDate : String(rawDate);
           return {
             date: dateStr,
             timeSlot: row['时段'],
@@ -872,7 +860,7 @@ export default function SmartPerformanceDashboard() {
       // 日期需要转换为Excel序列号格式
       const logisticsRecords = calculatedData.map(d => ({
         sync_id: `${d.date}_${d.timeSlot}`,
-        '日期': dateToExcelSerial(d.date),
+        '日期': d.date,  // 直接保存日期字符串，不转 Excel 序列号
         '时段': d.timeSlot,
         '班次': d.shift,
         '卸车量': d.unloadCount,
