@@ -909,6 +909,7 @@ export default function SmartPerformanceDashboard() {
   // 计算数据
   useEffect(() => {
     if (uploadedData.length > 0) {
+      console.log('[DEBUG] staffConfig keys:', Object.keys(staffConfig));
       const calculated = uploadedData.map(row => {
         currentTimeSlot = row.timeSlot;
         
@@ -922,6 +923,7 @@ export default function SmartPerformanceDashboard() {
         
         // 根据时段获取各班次人员配置（已包含所有自有、劳务、日结人员）
         const staffInfo = getStaffForTimeSlot(row.timeSlot, dateConfig);
+        console.log('[DEBUG] timeSlot:', row.timeSlot, 'ownNight:', dateConfig.ownNight, 'nightOwn:', staffInfo.nightOwn);
         const { 
           white: whiteStaff, middle: middleStaff, night: nightStaff, 
           totalFormula: totalFormulaStaff,
