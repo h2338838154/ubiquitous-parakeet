@@ -428,31 +428,20 @@ function smartAllocate(
   // ========== 可分配人员 ==========
   const fixedStaff = file + inspect + service + receive;
   const totalWorkStaff = ownCount + laborCount + dailyCount;
-  const allocatable = Math.max(1, totalWorkStaff - fixedStaff);
+  const allocatable = Math.max(0, totalWorkStaff - fixedStaff);
   
-  // ========== 根据班次和时段确定基础比例 ==========
-  // 参考实际数据：
-  // 白班：卸车8-21人，集包17-27人，环线(北环+南环)约30-50人，特快4人
-  // 夜班：卸车17-21人，集包25-30人，环线约45-65人，特快3人
+  // ========== 根据班次确定基础比例（参考实际数据调整）==========
+  // 白班：卸车8-21人，集包17-27人，环线(北环+南环)约30-50人
+  // 夜班：卸车17-21人，集包25-30人，环线约45-65人
+  // 各班次三环节人员比例参考值（卸:包:环）
+  // 白班：约 0.20 : 0.30 : 0.50
+  // 夜班：约 0.20 : 0.30 : 0.50
   
-  let baseUnloadRatio = 0.20;  // 卸车基础比例
-  let basePackageRatio = 0.30; // 集包基础比例
-  let baseLoopRatio = 0.50;    // 环线基础比例（北环+南环合并）
+  let baseUnloadRatio = 0.20;
+  let basePackageRatio = 0.30;
+  let baseLoopRatio = 0.50;
   
-  // ========== 根据业务量调整比例 ==========
-  const total = unloadCount + packageCount + loopCount;
-  if (total > 0) {
-    const volumeUnloadRatio = unloadCount / total;
-    const volumePackageRatio = packageCount / total;
-    const volumeLoopRatio = loopCount / total;
-    
-    // 业务量与基础比例混合
-    baseUnloadRatio = baseUnloadRatio * 0.6 + volumeUnloadRatio * 0.4;
-    basePackageRatio = basePackageRatio * 0.6 + volumePackageRatio * 0.4;
-    baseLoopRatio = baseLoopRatio * 0.6 + volumeLoopRatio * 0.4;
-  }
-  
-  // ========== 根据时段特征调整 ==========
+  // ========== 根据业务量调整比例（时段特征）==========
   // 早高峰（7:00-10:00）：进口件集中，卸车需求大
   // 午间（10:00-14:00）：集包为主
   // 下午（14:00-18:00）：平衡期
@@ -460,32 +449,43 @@ function smartAllocate(
   
   if (hour >= 7 && hour < 10) {
     // 早高峰：卸车比例提高
-    baseUnloadRatio *= 1.3;
-    basePackageRatio *= 0.9;
-    baseLoopRatio *= 0.95;
+    baseUnloadRatio = 0.30;
+    basePackageRatio = 0.25;
+    baseLoopRatio = 0.45;
   } else if (hour >= 10 && hour < 14) {
     // 午间：集包为主
-    baseUnloadRatio *= 0.9;
-    basePackageRatio *= 1.2;
-    baseLoopRatio *= 1.0;
+    baseUnloadRatio = 0.15;
+    basePackageRatio = 0.35;
+    baseLoopRatio = 0.50;
   } else if (hour >= 14 && hour < 18) {
     // 下午：平衡调整
-    baseUnloadRatio *= 1.1;
-    basePackageRatio *= 1.0;
-    baseLoopRatio *= 1.0;
+    baseUnloadRatio = 0.25;
+    basePackageRatio = 0.30;
+    baseLoopRatio = 0.45;
   } else if (hour >= 18 || hour < 7) {
     // 夜班：环线为主
-    baseUnloadRatio *= 0.85;
-    basePackageRatio *= 1.15;
-    baseLoopRatio *= 1.15;
+    baseUnloadRatio = 0.22;
+    basePackageRatio = 0.28;
+    baseLoopRatio = 0.50;
   }
   
   // ========== 中班特殊处理 ==========
   if (isMiddle) {
-    // 中班人员主要用于卸车和环线复用
     baseUnloadRatio = 0.35;
     basePackageRatio = 0.15;
     baseLoopRatio = 0.50;
+  }
+  
+  // ========== 根据实际业务量微调比例 ==========
+  const total = unloadCount + packageCount + loopCount;
+  if (total > 0) {
+    const volumeUnloadRatio = unloadCount / total;
+    const volumePackageRatio = packageCount / total;
+    const volumeLoopRatio = loopCount / total;
+    // 业务量权重 30%，基础比例权重 70%
+    baseUnloadRatio = baseUnloadRatio * 0.7 + volumeUnloadRatio * 0.3;
+    basePackageRatio = basePackageRatio * 0.7 + volumePackageRatio * 0.3;
+    baseLoopRatio = baseLoopRatio * 0.7 + volumeLoopRatio * 0.3;
   }
   
   // 归一化比例
@@ -494,50 +494,46 @@ function smartAllocate(
   const packageRatio = basePackageRatio / ratioSum;
   const loopRatio = baseLoopRatio / ratioSum;
   
-  // ========== 计算各环节人数 ==========
+  // ========== 计算各环节人数（基于可分配人员）==========
+  // 智能分配：严格按照配置的总人数 × 比例
+  // 卸车、集包、环线三者共用可分配人员，按比例分配
   let unload = Math.round(allocatable * unloadRatio);
   let package_ = Math.round(allocatable * packageRatio);
   let loop = Math.round(allocatable * loopRatio);
   
   // ========== 人员复用逻辑 ==========
   // 复用：卸车人员在完成卸车任务后可协助环线装车
-  // 参考数据：白班复用2-5人，夜班复用2-13人
   let reuseFromUnload = 0;
   if (isWhite) {
-    // 白班复用：根据卸车忙闲程度复用
     if (hour >= 7 && hour < 12) {
-      // 早高峰后开始复用
       reuseFromUnload = Math.min(Math.floor(unload * 0.20), Math.floor(loop * 0.10), 5);
     } else if (hour >= 12 && hour < 18) {
-      // 午间复用较多
       reuseFromUnload = Math.min(Math.floor(unload * 0.25), Math.floor(loop * 0.15), 7);
     }
   } else if (!isMiddle) {
-    // 夜班复用：根据业务量复用
     if (hour >= 18 && hour < 23) {
-      // 夜间前半段复用较多
       reuseFromUnload = Math.min(Math.floor(unload * 0.30), Math.floor(loop * 0.20), 13);
     } else {
-      // 夜间后半段复用较少
       reuseFromUnload = Math.min(Math.floor(unload * 0.20), Math.floor(loop * 0.15), 8);
     }
   }
   
-  // 调整：复用人数从卸车转至环线
-  unload = Math.max(3, unload - reuseFromUnload);
+  // 复用调整
+  unload = Math.max(0, unload - reuseFromUnload);
   loop = loop + reuseFromUnload;
   
-  // ========== 确保最小人数 ==========
-  unload = Math.max(3, unload);
-  package_ = Math.max(3, package_);
-  loop = Math.max(3, loop);
+  // 确保最低人数（仅在有足够人员时才强制最小值）
+  const minimumPerArea = allocatable >= 9 ? 3 : 0;
+  unload = Math.max(minimumPerArea, unload);
+  package_ = Math.max(minimumPerArea, package_);
+  loop = Math.max(minimumPerArea, loop);
   
   // ========== 总人数平衡 ==========
   const current = unload + package_ + loop;
   const diff = allocatable - current;
-  if (diff !== 0 && diff !== allocatable) {
-    // 优先调整集包人数
-    package_ = Math.max(3, package_ + diff);
+  if (diff !== 0) {
+    // 剩余人数优先分配给集包（业务量通常最大）
+    package_ = Math.max(minimumPerArea, package_ + diff);
   }
   
   // ========== 按比例分配各类型人员 ==========
@@ -906,10 +902,11 @@ export default function SmartPerformanceDashboard() {
     setNotification({ type: 'success', message: `已加载示例数据 ${EXAMPLE_DATA.length} 条` });
   };
   
-  // 计算数据
+  // 计算数据（依赖 uploadedData、staffConfig、selectedDate 确保配置修改后全局重算）
   useEffect(() => {
     if (uploadedData.length > 0) {
       console.log('[DEBUG] staffConfig keys:', Object.keys(staffConfig));
+      console.log('[DEBUG] recalculating due to staffConfig change:', JSON.stringify(staffConfig));
       const calculated = uploadedData.map(row => {
         currentTimeSlot = row.timeSlot;
         
