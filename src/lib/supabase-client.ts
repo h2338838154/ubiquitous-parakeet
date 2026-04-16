@@ -236,5 +236,9 @@ export function dateToExcelSerial(dateStr: string): number {
 export function excelSerialToDate(serial: number): string {
   const excelEpoch = new Date(1900, 0, 1);
   const date = new Date(excelEpoch.getTime() + (serial - 1) * 24 * 60 * 60 * 1000);
-  return date.toISOString().split('T')[0];
+  // 使用本地时区格式化，避免 UTC 偏移导致日期差一天
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

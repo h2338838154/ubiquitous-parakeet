@@ -634,8 +634,8 @@ function smartAllocate(
 function parseDate(value: unknown): string {
   if (!value) return '';
   if (typeof value === 'number') {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return format(date, 'yyyy-MM-dd');
+    // 使用 excelSerialToDate 函数确保时区正确
+    return excelSerialToDate(value);
   }
   if (typeof value === 'string') {
     const chineseMatch = value.match(/(\d+)月(\d+)日/);
