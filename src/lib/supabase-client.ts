@@ -185,7 +185,7 @@ export async function saveAllShiftConfigsCloud(configs: Record<string, ShiftConf
     const response = await fetch('/api/logistics?type=shiftConfig', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ configs })
+      body: JSON.stringify({ type: 'shiftConfig', configs })
     });
     
     const result = await response.json();
