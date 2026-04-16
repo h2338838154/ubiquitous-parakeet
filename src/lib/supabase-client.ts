@@ -8,19 +8,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 let supabase: SupabaseClient | null = null;
 
 if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    db: {
-      schema: 'public'
-    },
-    global: {
-      headers: {
-        'apikey': supabaseAnonKey
-      }
-    }
-  });
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
 }
 
 export { supabase };
+export { supabaseUrl, supabaseAnonKey };
 
 // 日期转换函数：ISO日期转Excel序列号
 export function dateToExcelSerial(dateStr: string): number {
@@ -75,6 +67,7 @@ export interface LogisticsDataRow {
 // 保存数据 - 使用 REST API 绕过 schema 缓存
 export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Promise<{ success: boolean; error?: string }> {
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase not configured for save');
     return { success: false, error: '云端连接不可用' };
   }
   
@@ -108,19 +101,24 @@ export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Prom
 // 加载数据 - 使用 REST API 绕过 schema 缓存
 export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; error?: string }> {
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase not configured:', { supabaseUrl, supabaseAnonKey: !!supabaseAnonKey });
     return { data: [], error: '云端连接不可用' };
   }
   
   try {
+    console.log('Loading from:', `${supabaseUrl}/rest/v1/business_data`);
     const response = await fetch(
       `${supabaseUrl}/rest/v1/business_data?select=*&order=日期.asc&order=时段.asc`,
       {
         headers: {
           'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json'
         }
       }
     );
+    
+    console.log('Load response status:', response.status);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -129,6 +127,7 @@ export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; e
     }
     
     const data = await response.json();
+    console.log('Loaded rows:', data?.length);
     return { data: data || [] };
   } catch (err) {
     console.error('Load error:', err);
@@ -319,7 +318,8 @@ export async function clearLogisticsData(): Promise<{ success: boolean; error?: 
         method: 'DELETE',
         headers: {
           'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json'
         }
       }
     );
