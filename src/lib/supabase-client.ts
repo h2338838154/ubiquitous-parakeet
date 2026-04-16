@@ -227,13 +227,19 @@ export async function clearAllCloudData(): Promise<{ success: boolean; error?: s
 }
 
 // 日期转换函数
+// ============ Excel 日期与字符串互转（统一使用 UTC 避免时区问题） ============
+
 export function dateToExcelSerial(dateStr: string): number {
-  const date = new Date(dateStr);
-  const excelEpoch = new Date(1900, 0, 1);
-  return Math.floor((date.getTime() - excelEpoch.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  const date = new Date(dateStr + 'T00:00:00Z');  // 使用 UTC
+  const excelEpoch = Date.UTC(1899, 11, 30);  // 1899-12-30 UTC
+  return Math.floor((date.getTime() - excelEpoch) / (24 * 60 * 60 * 1000));
 }
 
 export function excelSerialToDate(serial: number): string {
-  const date = new Date((serial - 25569) * 86400000);
-  return date.toISOString().split('T')[0];
+  const excelEpoch = Date.UTC(1899, 11, 30);  // 1899-12-30 UTC
+  const date = new Date(excelEpoch + serial * 24 * 60 * 60 * 1000);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
