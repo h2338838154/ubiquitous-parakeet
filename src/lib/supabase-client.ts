@@ -1,40 +1,9 @@
 'use client';
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-let supabase: SupabaseClient | null = null;
-
-if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
-}
-
-export { supabase };
-export { supabaseUrl, supabaseAnonKey };
-
-// 日期转换函数：ISO日期转Excel序列号
-export function dateToExcelSerial(dateStr: string): number {
-  const date = new Date(dateStr);
-  const excelEpoch = new Date(1899, 11, 30);
-  return Math.floor((date.getTime() - excelEpoch.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// 日期转换函数：Excel序列号转ISO日期（考虑时区偏移）
-export function excelSerialToDate(serial: number): string {
-  const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-  const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 // 适配用户现有表结构
 export interface LogisticsDataRow {
   sync_id: string;
-  日期: number | string;  // Excel序列号
+  日期: number | string;
   时段: string;
   班次: string;
   卸车量: number;
@@ -64,94 +33,8 @@ export interface LogisticsDataRow {
   updated_at?: string;
 }
 
-// 保存数据 - 使用 REST API 绕过 schema 缓存
-export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Promise<{ success: boolean; error?: string }> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Supabase not configured for save');
-    return { success: false, error: '云端连接不可用' };
-  }
-  
-  try {
-    for (const record of data) {
-      // 使用 REST API 直接 POST，绕过 schema 缓存
-      const response = await fetch(`${supabaseUrl}/rest/v1/business_data`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(record)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Save error:', response.status, errorText);
-        return { success: false, error: `${response.status}: ${errorText}` };
-      }
-    }
-    return { success: true };
-  } catch (err) {
-    console.error('Save error:', err);
-    return { success: false, error: '保存失败' };
-  }
-}
-
-// 加载数据 - 使用 REST API 绕过 schema 缓存
-export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; error?: string }> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Supabase not configured:', { supabaseUrl, supabaseAnonKey: !!supabaseAnonKey });
-    return { data: [], error: '云端连接不可用' };
-  }
-  
-  try {
-    console.log('Loading from:', `${supabaseUrl}/rest/v1/business_data`);
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/business_data?select=*&order=日期.asc&order=时段.asc`,
-      {
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    console.log('Load response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Load error:', response.status, errorText);
-      return { data: [], error: `${response.status}: ${errorText}` };
-    }
-    
-    const data = await response.json();
-    console.log('Loaded rows:', data?.length);
-    return { data: data || [] };
-  } catch (err) {
-    console.error('Load error:', err);
-    return { data: [], error: '加载失败' };
-  }
-}
-
-// 班次配置（按日期存储）
-export interface DailyStaffConfig {
-  [date: string]: {
-    ownWhite: number;
-    ownMiddle: number;
-    ownNight: number;
-    laborWhite: number;
-    laborNight: number;
-    dailyWhite: number;
-    dailyNight: number;
-    assessAmount: number;
-  };
-}
-
+// 班次配置接口
 export interface ShiftConfig {
-  date: string;
-  configs: DailyStaffConfig;
   ownWhite: number;
   ownMiddle: number;
   ownNight: number;
@@ -162,209 +45,196 @@ export interface ShiftConfig {
   assessAmount: number;
 }
 
-interface ShiftConfigRow {
-  date: string;
-  own_white: number;
-  own_middle: number;
-  own_night: number;
-  labor_white: number;
-  labor_night: number;
-  daily_white: number;
-  daily_night: number;
-  assess_amount: number;
-}
-
-// 保存班次配置到 localStorage
-export function saveShiftConfig(config: ShiftConfig): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('shift_config', JSON.stringify(config));
-  }
-}
-
-// 保存班次配置到云端
-export async function saveShiftConfigCloud(config: ShiftConfig): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
+// 保存单个日期的班次配置到 localStorage
+export function saveShiftConfig(config: { date: string; configs: Record<string, ShiftConfig>; [key: string]: unknown }): void {
   try {
-    const { error } = await supabase
-      .from('shift_config')
-      .upsert({
-        date: config.date,
-        config_data: config.configs,
-        own_white: config.ownWhite,
-        own_middle: config.ownMiddle,
-        own_night: config.ownNight,
-        labor_white: config.laborWhite,
-        labor_night: config.laborNight,
-        daily_white: config.dailyWhite,
-        daily_night: config.dailyNight,
-        assess_amount: config.assessAmount,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'date' });
-    
-    if (error && Object.keys(error).length > 0) {
-      console.warn('Save shift config warning:', error);
-    }
-    return { success: true };
-  } catch (err) {
-    console.warn('Save shift config failed:', err);
-    return { success: false, error: '保存班次配置失败' };
-  }
-}
-
-// 批量保存所有班次配置到云端
-export async function saveAllShiftConfigsCloud(configs: DailyStaffConfig): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
-  try {
-    const records = Object.entries(configs).map(([date, config]) => ({
-      date,
-      config_data: config,
-      own_white: config.ownWhite,
-      own_middle: config.ownMiddle,
-      own_night: config.ownNight,
-      labor_white: config.laborWhite,
-      labor_night: config.laborNight,
-      daily_white: config.dailyWhite,
-      daily_night: config.dailyNight,
-      assess_amount: config.assessAmount,
-      updated_at: new Date().toISOString()
-    }));
-    
-    for (const record of records) {
-      const { error } = await supabase
-        .from('shift_config')
-        .upsert(record, { onConflict: 'date' });
-      
-      if (error && Object.keys(error).length > 0) {
-        console.warn('[saveAllShiftConfigsCloud] 保存失败:', record.date, error);
-        return { success: false, error: error.message };
+    const data = {
+      [config.date]: {
+        ownWhite: config.ownWhite,
+        ownMiddle: config.ownMiddle,
+        ownNight: config.ownNight,
+        laborWhite: config.laborWhite,
+        laborNight: config.laborNight,
+        dailyWhite: config.dailyWhite,
+        dailyNight: config.dailyNight,
+        assessAmount: config.assessAmount
       }
+    };
+    localStorage.setItem(`shiftConfig_${config.date}`, JSON.stringify(data));
+  } catch (err) {
+    console.error('saveShiftConfig error:', err);
+  }
+}
+
+// 加载单个日期的班次配置从 localStorage
+export function loadShiftConfig(date: string): ShiftConfig | null {
+  try {
+    const data = localStorage.getItem(`shiftConfig_${date}`);
+    if (data) {
+      return JSON.parse(data)[date] || null;
     }
+  } catch (err) {
+    console.error('loadShiftConfig error:', err);
+  }
+  return null;
+}
+
+// 清除班次配置从 localStorage
+export function clearShiftConfigs(): void {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('shiftConfig_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (err) {
+    console.error('clearShiftConfigs error:', err);
+  }
+}
+
+// 通过 Next.js API 路由加载数据（避免 CORS 问题）
+export async function loadLogisticsData(): Promise<{ data: LogisticsDataRow[]; error?: string }> {
+  try {
+    const response = await fetch('/api/logistics', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { data: [], error: result.error || '加载失败' };
+    }
+    
+    return { data: result.data || [] };
+  } catch (err) {
+    console.error('Load error:', err);
+    return { data: [], error: '加载失败' };
+  }
+}
+
+// 通过 Next.js API 路由保存数据
+export async function saveLogisticsData(data: Partial<LogisticsDataRow>[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/logistics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: data })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '保存失败' };
+    }
+    
     return { success: true };
   } catch (err) {
-    console.warn('[saveAllShiftConfigsCloud] 保存失败:', err);
-    return { success: false, error: '保存班次配置失败' };
+    console.error('Save error:', err);
+    return { success: false, error: '保存失败' };
   }
 }
 
-// 加载班次配置
-export function loadShiftConfig(): { data: ShiftConfig | null } {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('shift_config');
-    if (stored) {
-      return { data: JSON.parse(stored) };
-    }
-  }
-  return { data: null };
-}
-
-// 从云端加载班次配置
-export async function loadShiftConfigCloud(): Promise<{ data: DailyStaffConfig | null; error?: string }> {
-  if (!supabase) {
-    return { data: null, error: '云端连接不可用' };
-  }
-  
-  try {
-    const { data, error } = await supabase
-      .from('shift_config')
-      .select('*')
-      .order('date', { ascending: true });
-    
-    if (error && Object.keys(error).length > 0) {
-      console.warn('[loadShiftConfigCloud] 加载失败:', error);
-      return { data: null, error: error.message };
-    }
-    
-    if (data && data.length > 0) {
-      const configs: DailyStaffConfig = {};
-      data.forEach((row: ShiftConfigRow) => {
-        configs[row.date] = {
-          ownWhite: row.own_white ?? 0,
-          ownMiddle: row.own_middle ?? 0,
-          ownNight: row.own_night ?? 0,
-          laborWhite: row.labor_white ?? 0,
-          laborNight: row.labor_night ?? 0,
-          dailyWhite: row.daily_white ?? 0,
-          dailyNight: row.daily_night ?? 0,
-          assessAmount: row.assess_amount ?? 0
-        };
-      });
-      return { data: configs };
-    }
-    
-    return { data: null };
-  } catch (err) {
-    console.warn('[loadShiftConfigCloud] 加载失败:', err);
-    return { data: null, error: '加载班次配置失败' };
-  }
-}
-
-// 清除数据（不清除班次配置）- 使用 REST API
+// 通过 Next.js API 路由清除数据
 export async function clearLogisticsData(): Promise<{ success: boolean; error?: string }> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
-    // 使用 DELETE 方法清除所有数据
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/business_data?sync_id=not.is.null`,
-      {
-        method: 'DELETE',
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const response = await fetch('/api/logistics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear' })
+    });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.warn('Clear warning:', response.status, errorText);
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '清除失败' };
     }
+    
     return { success: true };
   } catch (err) {
-    console.warn('Clear error:', err);
+    console.error('Clear error:', err);
     return { success: false, error: '清除失败' };
   }
 }
 
-// 清除班次配置
-export async function clearShiftConfigs(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
+// 加载云端班次配置（通过 API）
+export async function loadShiftConfigCloud(): Promise<{ data: Record<string, ShiftConfig> | null; error?: string }> {
   try {
-    const { error } = await supabase.from('shift_config').delete().neq('date', '');
-    if (error && Object.keys(error).length > 0) {
-      console.warn('Clear shift configs warning:', error);
+    const response = await fetch('/api/logistics?type=shiftConfig', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { data: null, error: result.error || '加载失败' };
     }
+    
+    return { data: result.data || null };
+  } catch (err) {
+    console.error('loadShiftConfigCloud error:', err);
+    return { data: null, error: '加载失败' };
+  }
+}
+
+// 保存所有班次配置到云端（通过 API）
+export async function saveAllShiftConfigsCloud(configs: Record<string, ShiftConfig>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/logistics?type=shiftConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ configs })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '保存失败' };
+    }
+    
     return { success: true };
   } catch (err) {
-    return { success: false, error: '清除班次配置失败' };
+    console.error('saveAllShiftConfigsCloud error:', err);
+    return { success: false, error: '保存失败' };
   }
 }
 
 // 清除所有云端数据
 export async function clearAllCloudData(): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) {
-    return { success: false, error: '云端连接不可用' };
-  }
-  
   try {
     // 清除业务数据
-    await supabase.from('business_data').delete().neq('sync_id', '');
+    await clearLogisticsData();
+    
     // 清除班次配置
-    await supabase.from('shift_config').delete().neq('date', '');
+    const response = await fetch('/api/logistics?type=shiftConfig', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '清除失败' };
+    }
+    
     return { success: true };
   } catch (err) {
+    console.error('clearAllCloudData error:', err);
     return { success: false, error: '清除失败' };
   }
+}
+
+// 日期转换函数
+export function dateToExcelSerial(dateStr: string): number {
+  const date = new Date(dateStr);
+  const excelEpoch = new Date(1900, 0, 1);
+  return Math.floor((date.getTime() - excelEpoch.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+export function excelSerialToDate(serial: number): string {
+  const excelEpoch = new Date(1900, 0, 1);
+  const date = new Date(excelEpoch.getTime() + (serial - 1) * 24 * 60 * 60 * 1000);
+  return date.toISOString().split('T')[0];
 }
