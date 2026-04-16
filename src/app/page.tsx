@@ -132,10 +132,11 @@ const PACKAGE_UNIT_PRICE = 0.0686;   // 集包收入 = 集包量 × 0.0686
 const LOOP_UNIT_PRICE = 0.2765;     // 环线收入 = 环线量 × 0.2765
 
 // ============ 固定成本常量 ============
+// 客服成本 = 4200/5/8 = 105元/时段（仅9:00-17:00时段）
+const SERVICE_COST = 4200 / 5 / 8; // ≈ 105元/时段
 // 管理成本 = (110000+16600+24900)/30/24 ≈ 210.42元/时段（固定，不按人数）
 const MANAGE_SALARY = (110000 + 16600 + 24900) / 30 / 24; // ≈ 210.42元/时段
 const SOCIAL_SECURITY = (14 * 1130) / 30 / 24; // ≈ 21.99元/时段/人
-const SERVICE_COST_PER_PERSON = (4200 / 30 * 2) / 9; // ≈ 31.11元/人/时段
 const COMMERCIAL_INSURANCE_RATE = 4.5 / 24; // ≈ 0.1875元/人/时段
 const ORDER_CLAIM = 20000 / 30 / 24; // ≈ 27.78元/时段
 
@@ -381,9 +382,14 @@ function calcLoopRevenue(loopCount: number): number {
   return loopCount * LOOP_UNIT_PRICE;
 }
 
-// 客服人员成本 = (4200/30*2)/9 * 人数
-function calcServiceCost(serviceStaff: number): number {
-  return SERVICE_COST_PER_PERSON * serviceStaff;
+// 客服人员成本 = 4200/5/8 = 105元/时段（仅9:00-17:00时段）
+function calcServiceCost(timeSlot: string): number {
+  const hour = parseHour(timeSlot);
+  // 仅 9:00-17:00 时段有客服成本
+  if (hour >= 9 && hour < 17) {
+    return SERVICE_COST; // 105元/时段
+  }
+  return 0;
 }
 
 // ============ 薪资计算函数（新公式）===========
@@ -1062,7 +1068,8 @@ export default function SmartPerformanceDashboard() {
         // ============ 新增成本项（自有人员单独计算，其他已包含在公式中）===========
         
         // 客服人员成本 = (4200/30*2)/9 * 人数
-        const serviceCost = calcServiceCost(allocation.service);
+        // 客服成本 = 4200/5/8 = 105元/时段（仅9:00-17:00时段）
+        const serviceCost = calcServiceCost(row.timeSlot);
         
         // 商业险 = 总自有人数 * 4.5 / 24
         const commercialInsurance = calcCommercialInsurance(totalOwnStaff);
