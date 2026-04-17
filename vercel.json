@@ -3,16 +3,5 @@
   "buildCommand": "pnpm install && pnpm build",
   "outputDirectory": ".next",
   "installCommand": "pnpm install",
-  "devCommand": "pnpm dev",
-  "regions": ["iad1"],
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key"
-  },
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key"
-    }
-  }
+  "devCommand": "pnpm dev"
 }
