@@ -1,78 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
-
-let envLoaded = false;
 
 interface SupabaseCredentials {
   url: string;
   anonKey: string;
 }
 
-function loadEnv(): void {
-  if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
-    return;
-  }
-
-  try {
-    try {
-      require('dotenv').config();
-      if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
-        envLoaded = true;
-        return;
-      }
-    } catch {
-      // dotenv not available
-    }
-
-    const pythonCode = `
-import os
-import sys
-try:
-    from coze_workload_identity import Client
-    client = Client()
-    env_vars = client.get_project_env_vars()
-    client.close()
-    for env_var in env_vars:
-        print(f"{env_var.key}={env_var.value}")
-except Exception as e:
-    print(f"# Error: {e}", file=sys.stderr)
-`;
-
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-
-    envLoaded = true;
-  } catch {
-    // Silently fail
-  }
-}
-
 function getSupabaseCredentials(): SupabaseCredentials {
-  loadEnv();
-
-  // 支持多种环境变量名（优先使用 NEXT_PUBLIC_*）
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
+  // 从环境变量读取
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url) {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set');
@@ -85,45 +21,43 @@ function getSupabaseCredentials(): SupabaseCredentials {
 }
 
 function getSupabaseServiceRoleKey(): string | undefined {
-  loadEnv();
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+  return process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
-function getSupabaseClient(token?: string): SupabaseClient {
+// 创建客户端实例
+let supabaseClient: SupabaseClient | null = null;
+let supabaseAdminClient: SupabaseClient | null = null;
+
+export function getSupabaseClient(): SupabaseClient {
+  if (supabaseClient) return supabaseClient;
   const { url, anonKey } = getSupabaseCredentials();
-
-  let key: string;
-  if (token) {
-    key = anonKey;
-  } else {
-    const serviceRoleKey = getSupabaseServiceRoleKey();
-    key = serviceRoleKey ?? anonKey;
-  }
-
-  if (token) {
-    return createClient(url, key, {
-      global: {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      db: {
-        timeout: 60000,
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-  }
-
-  return createClient(url, key, {
-    db: {
-      timeout: 60000,
-    },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  supabaseClient = createClient(url, anonKey);
+  return supabaseClient;
 }
 
-export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };
+export function getSupabaseAdminClient(): SupabaseClient {
+  if (supabaseAdminClient) return supabaseAdminClient;
+  const { url, anonKey } = getSupabaseCredentials();
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+  supabaseAdminClient = createClient(url, serviceRoleKey || anonKey);
+  return supabaseAdminClient;
+}
+
+export { getSupabaseCredentials, getSupabaseServiceRoleKey };
+
+// ============ Excel 日期与字符串互转（统一使用 UTC 避免时区问题） ============
+
+export function dateToExcelSerial(dateStr: string): number {
+  const date = new Date(dateStr + 'T00:00:00Z');
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  return Math.floor((date.getTime() - excelEpoch) / (24 * 60 * 60 * 1000));
+}
+
+export function excelSerialToDate(serial: number): string {
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  const date = new Date(excelEpoch + serial * 24 * 60 * 60 * 1000);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
