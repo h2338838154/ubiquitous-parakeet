@@ -6,12 +6,20 @@ interface SupabaseCredentials {
 }
 
 function getSupabaseCredentials(): SupabaseCredentials {
-  // 从环境变量读取
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // 尝试多种环境变量名
+  const url = 
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL_SERVER;
+  
+  const anonKey = 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_SERVER;
 
   if (!url) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set');
+    const available = Object.keys(process.env).filter(k => k.includes('SUPABASE'));
+    throw new Error(`NEXT_PUBLIC_SUPABASE_URL is not set. Available env vars: ${available.join(', ')}`);
   }
   if (!anonKey) {
     throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set');
