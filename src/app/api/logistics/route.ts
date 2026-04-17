@@ -97,6 +97,9 @@ export async function POST(request: NextRequest) {
 		const body = await request.json();
 		const { records, action, configs, type } = body;
 
+		// 调试日志
+		console.log('POST action:', action, 'type:', type, 'records count:', records?.length);
+
 		// 处理班次配置
 		if (type === 'shiftConfig' && configs) {
 			const { data, error } = await client
@@ -106,6 +109,7 @@ export async function POST(request: NextRequest) {
 				.single();
 
 			if (error) {
+				console.error('shift_config upsert error:', error);
 				throw new Error(`保存班次配置失败: ${error.message}`);
 			}
 
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
 		if (action === 'clear') {
 			const { error } = await client.from('business_data').delete().neq('sync_id', '');
 			if (error) {
+				console.error('clear error:', error);
 				throw new Error(`清空数据失败: ${error.message}`);
 			}
 			return NextResponse.json({ success: true, message: '数据已清空' });
@@ -125,6 +130,8 @@ export async function POST(request: NextRequest) {
 			throw new Error('Invalid records format');
 		}
 
+		console.log('First record:', JSON.stringify(records[0]));
+
 		// 使用 upsert 基于 sync_id
 		const { data, error } = await client
 			.from('business_data')
@@ -132,6 +139,7 @@ export async function POST(request: NextRequest) {
 			.select();
 
 		if (error) {
+			console.error('business_data upsert error:', error);
 			throw new Error(`保存数据失败: ${error.message}`);
 		}
 
